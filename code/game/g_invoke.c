@@ -26,9 +26,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //   orb <q|w|e>   push an orb into the player's slots
 //   invoke        grant the weapon matching the held orbs and switch to it
 //
-// State lives in gclient_t (server only). The client learns the orb slots
-// through the "orbs" server command so it can draw them; the invoked weapon
-// arrives through the normal STAT_WEAPONS / ammo snapshot path.
+// State lives in a game-owned per-client table (see below). The client
+// learns the orb slots through the "orbs" server command so it can draw
+// them; the invoked weapon arrives through the STAT_WEAPONS / ammo snapshot
+// path and a weapon-select server command.
 
 #include "g_local.h"
 #include "bg_invoke.h"
