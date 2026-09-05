@@ -1789,6 +1789,10 @@ void ClientCommand( int clientNum ) {
 		Cmd_Noclip_f (ent);
 	else if (Q_stricmp (cmd, "kill") == 0)
 		Cmd_Kill_f (ent);
+	else if (Q_stricmp (cmd, "orb") == 0)
+		Cmd_Orb_f (ent);
+	else if (Q_stricmp (cmd, "invoke") == 0)
+		Cmd_Invoke_f (ent);
 	else if (Q_stricmp (cmd, "teamtask") == 0)
 		Cmd_TeamTask_f (ent);
 	else if (Q_stricmp (cmd, "levelshot") == 0)

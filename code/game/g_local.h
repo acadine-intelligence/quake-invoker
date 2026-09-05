@@ -426,6 +426,13 @@ char *G_NewString( const char *string );
 //
 void Cmd_Score_f (gentity_t *ent);
 void StopFollowing( gentity_t *ent );
+
+//
+// g_invoke.c (Quake Invoker)
+//
+void G_InvokeReset( gentity_t *ent );
+void Cmd_Orb_f( gentity_t *ent );
+void Cmd_Invoke_f( gentity_t *ent );
 void BroadcastTeamChange( gclient_t *client, int oldTeam );
 void SetTeam( gentity_t *ent, const char *s );
 void Cmd_FollowCycle_f( gentity_t *ent, int dir );

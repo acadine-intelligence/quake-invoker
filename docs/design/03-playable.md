@@ -17,6 +17,7 @@ Retail `pak0.pk3` through `pak8.pk3` never enter this repository, a release, or 
 cd ~/projects/quake-invoker
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j8
+make -C tests        # host-side unit tests for game rules (bg_invoke)
 # unpack OA data once, outside the repo:
 #   ~/projects/quake-invoker-content/openarena-0.8.8/  (baseoa/, missionpack/)
 cp -R ~/projects/quake-invoker-content/openarena-0.8.8/baseoa build/Release/baseoa
