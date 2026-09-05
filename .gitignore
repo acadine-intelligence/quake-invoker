@@ -41,3 +41,7 @@ profile
 *.opensdf
 *.suo
 /.vs
+
+# Quake Invoker local tooling (not part of the engine)
+/.emsdk/
+/build-em*/
