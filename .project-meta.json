@@ -1,0 +1,35 @@
+{
+  "slug": "quake-invoker",
+  "name": "Quake Invoker",
+  "canonical_root": "~/projects/quake-invoker/",
+  "license": "GPL-2.0-or-later",
+  "upstream": {
+    "engine": "https://github.com/ioquake/ioq3",
+    "engine_branch": "main",
+    "origin_release": "https://github.com/id-Software/Quake-III-Arena",
+    "remote_name": "upstream"
+  },
+  "remote": {
+    "org": "acadine-intelligence",
+    "repo": "quake-invoker",
+    "visibility": "public",
+    "status": "pending-approval"
+  },
+  "paths": {
+    "engine": "~/projects/quake-invoker/code/",
+    "game_logic": "~/projects/quake-invoker/code/game/",
+    "client_game": "~/projects/quake-invoker/code/cgame/",
+    "ui": "~/projects/quake-invoker/code/ui/",
+    "docs": "~/projects/quake-invoker/docs/",
+    "design": "~/projects/quake-invoker/docs/design/",
+    "build": "~/projects/quake-invoker/build/"
+  },
+  "build": {
+    "configure": "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release",
+    "build": "cmake --build build -j8",
+    "standalone_flag": "-DBUILD_STANDALONE=1"
+  },
+  "kanban_epic": null,
+  "vault_note": "07-project-notes/Quake Invoker.md",
+  "session_protocol": "cat ~/projects/quake-invoker/.project-meta.json"
+}

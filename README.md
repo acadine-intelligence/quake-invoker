@@ -1,3 +1,22 @@
+# Quake Invoker
+
+A GPL-2.0 open-source arena shooter that combines Quake III movement and combat with DotA Invoker's orb-combination mechanic. Hold three orb slots, invoke a weapon or ability from the combination, fight. First mode: one-player roguelite. Later: 1v1, deathmatch and more.
+
+Status: engine fork established, no gameplay changes yet. Design notes live in `docs/design/`.
+
+This project is a fork of [ioquake3](https://github.com/ioquake/ioq3), which is the community continuation of id Software's GPL release of Quake III Arena. Full credit to the ioquake3 maintainers and contributors listed below; the engine documentation that follows is theirs. Quake III Arena game data is not included and is not needed for Quake Invoker's own content. See `LICENSE-NOTES.md` for the license lineage and `AGENTS.md` for how to work in this repository.
+
+Build (macOS, Linux):
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j8
+```
+
+---
+
+# ioquake3 (upstream engine documentation)
+
 ![Build](https://github.com/ioquake/ioq3/workflows/Build/badge.svg)
 
                    ,---------------------------------------.
