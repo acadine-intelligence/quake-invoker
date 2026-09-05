@@ -30,6 +30,7 @@
     "standalone_flag": "-DBUILD_STANDALONE=1"
   },
   "kanban_epic": null,
-  "vault_note": "07-project-notes/Quake Invoker.md",
-  "session_protocol": "cat ~/projects/quake-invoker/.project-meta.json"
+  "vault_note": "08-projects/quake-invoker.md",
+  "session_protocol": "cat ~/projects/quake-invoker/.project-meta.json",
+  "hermes_project_id": "p_af48d63b"
 }
