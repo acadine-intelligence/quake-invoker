@@ -18,11 +18,9 @@ cd ~/projects/quake-invoker
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j8
 # unpack OA data once, outside the repo:
-#   ~/projects/quake-invoker-content/OpenArena 0.8.8/  (baseoa/, missionpack/)
-cp -R ~/projects/quake-invoker-content/OpenArena\ 0.8.8/baseoa build/Release/baseoa
-cp -R ~/projects/quake-invoker-content/OpenArena\ 0.8.8/missionpack build/Release/
-open build/Release/ioquake3.app
-# in console: +set com_basegame baseoa  (or use args:)
+#   ~/projects/quake-invoker-content/openarena-0.8.8/  (baseoa/, missionpack/)
+cp -R ~/projects/quake-invoker-content/openarena-0.8.8/baseoa build/Release/baseoa
+cp ~/projects/quake-invoker-content/openarena-0.8.8/missionpack/mp-pak0.pk3 build/Release/missionpack/
 open build/Release/ioquake3.app --args +set com_basegame baseoa +map oa_dm1
 ```
 
