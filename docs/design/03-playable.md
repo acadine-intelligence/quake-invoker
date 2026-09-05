@@ -42,7 +42,15 @@ python3 -m http.server 8080
 # open http://localhost:8080/build-em/Release/ioquake3.html
 ```
 
-The server must expose the data directory tree under the page URL; put the pk3 layout beside the build output or adjust the config json. Public hosting is a later, separately approved step (GitHub Pages or Cloudflare).
+The server must expose the data directory tree under the page URL. Verified working layout (2026-09-05):
+
+- `build-em/Release/baseoa/pak*.pk3` (the 8 GPL paks copied from the OA extract; ~391 MB)
+- `build-em/Release/ioquake3-config.json` listing each pak as `{"src": "baseoa/<name>.pk3", "dst": "/baseoa"}`
+- serve the repo root: `python3 -m http.server 8080`, then open
+  `http://127.0.0.1:8080/build-em/Release/ioquake3.html?com_basegame=baseoa`
+- direct into a map: append `&args=%2Bmap%20oa_dm3` (the `+` must be `%2b`-encoded)
+
+Verified end to end: page loads, streams all paks, menu renders, `+map oa_dm3` enters the arena with weapon and HUD live (WebGL). Public hosting is a later, separately approved step (GitHub Pages or Cloudflare).
 
 ## Emscripten toolchain
 
