@@ -34,10 +34,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "g_local.h"
 #include "bg_invoke.h"
 
-// Per-client invoker state, owned by the game module. Kept out of gclient_t
-// on purpose: the engine writes the leading playerState_t of each client
-// every frame, and the QVM and native layouts of gclient_t do not agree on
-// where trailing fields land, so anything appended there gets stomped.
+// Per-client invoker state, owned by the game module. Keeping this state
+// separate avoids changing the shared client layout for invocation features.
+// Shared struct edits require every dependent QVM source to be rebuilt.
 typedef struct {
 	int		orbSlots[INVOKE_SLOTS];	// orbType_t values, oldest first
 	int		invokedWeapon;			// WP_ granted by last invoke, WP_NONE if none

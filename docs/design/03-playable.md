@@ -25,7 +25,34 @@ cp ~/projects/quake-invoker-content/openarena-0.8.8/missionpack/mp-pak0.pk3 buil
 open build/Release/ioquake3.app --args +set com_basegame baseoa +map oa_dm1
 ```
 
-The engine looks in `com_basegame` before `baseq3` and enters standalone mode when no retail paks are found. QVM game logic in `build/Release/baseoa/vm/` is ours to replace later (phase 1 gameplay).
+Stock OpenArena launches use the game modules in its data paks. Run the Invoker mod with `fs_game invoker` to load the custom QVMs.
+
+## Invoker mod and visual verification
+
+With OpenArena data installed, run these commands from the repository root:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j8
+make -C tests
+python3 tests/run_visual_smoke.py
+```
+
+The smoke script opens a windowed local game and quits after the tests. It uses a fresh home directory under `build/visual-smoke/`, copies the current QVMs, and records their SHA-256 values. It exercises orb colors and two invocations, then checks effects-disabled, spectator, and respawn states. Inspect the generated JPEGs before accepting the visuals. Console assertions alone establish command flow.
+
+For normal mod play, install the QVMs and the optional controls file:
+
+```bash
+mkdir -p build/Release/invoker/vm
+cp build/Release/baseq3/vm/*.qvm build/Release/invoker/vm/
+cp configs/invoker.cfg build/Release/invoker/
+```
+
+Launch the client with `com_basegame baseoa`, `fs_game invoker`, `sv_pure 0`, and `map oa_dm3`. In the game console, `exec invoker.cfg` selects Q/E/R for orb types Q/W/E and F for invoke. W retains its movement binding. Set `cg_invokeEffects 0` to hide the first-person effects while retaining the HUD.
+
+QVM compilation tracks source headers conservatively. A header change rebuilds all QVM modules so shared structs retain consistent offsets. Keep generated QVMs from different source revisions separate.
+
+The invocation visuals have native macOS verification. The browser result below describes the earlier stock OpenArena build; it does not establish browser verification of these visuals.
 
 ## Browser build (Emscripten)
 

@@ -5,9 +5,9 @@ Status: slice 1 implemented and verified in-engine (2026-09-05). Weapons are sto
 ## What slice 1 proves
 
 - `orb <q|w|e>` and `invoke` client commands (`code/game/g_invoke.c`), pushed through the normal client command path.
-- Orb state lives in a game-owned per-client table (`g_invoke[]`). It must NOT live in `gclient_t` trailing fields: the QVM and native layouts disagree there and the engine stomps it mid-frame (found the hard way, commit history on the slice branch).
+- Orb state lives in a game-owned per-client table (`g_invoke[]`). This keeps invocation state separate from the shared client layout. Shared struct edits require all dependent QVM sources to rebuild. Missing header dependencies caused inconsistent struct offsets during the visual-effects pass; a clean rebuild fixed that failure. The QVM build now tracks headers.
 - Order-independent combo lookup in `code/game/bg_invoke.c` (shared by game and cgame, unit-tested host-side by `make -C tests`).
-- HUD: three slot letters + the pending invocation's name (`CG_DrawOrbs` in `code/cgame/cg_draw.c`).
+- HUD: colored orb slots with letters, the pending invocation, and the last confirmed invocation (`CG_DrawOrbs` in `code/cgame/cg_invoke.c`).
 - One live invoked weapon at a time; invoking a different weapon drops the previous one. Machinegun and gauntlet (spawn weapons) are never dropped.
 
 ## In-engine test (scripted, repeatable)
@@ -22,7 +22,17 @@ mkdir -p build/Release/invoker/vm && cp build/Release/baseq3/vm/*.qvm build/Rele
 # console: orb q / orb q / orb e / invoke  -> expect "invoked Frost Rockets (QQE)", rocket launcher in hand
 ```
 
-Key bindings are not shipped yet; run `bind q "orb q"` etc. or use the console commands.
+`configs/invoker.cfg` supplies opt-in bindings: Q/E/R select orb types Q/W/E; F invokes. W keeps its movement binding. See `docs/design/03-playable.md` for installation and verification.
+
+## Engine-native invocation visuals
+
+Held orbs orbit below the crosshair with fading trails. Quas is blue, Wex is violet, and Exort is orange. A confirmed invocation triggers an expanding spark ring and a colored dynamic light for 600 ms. The lower-left HUD distinguishes the pending combo (`READY`) from the last confirmed invocation (`CAST`). Changing orbs leaves the last cast label unchanged.
+
+`cg_invokeEffects 0` disables the first-person effects and HUD pulse. The HUD panel stays visible. Death, spectator views, and follow mode hide the panel and effects. Respawn and map restart clear the stored cast. Third-person views keep the HUD while hiding camera-relative effects.
+
+This pass reuses the installed `railDisc` shader and the engine sprite/light APIs. It adds no art files and changes no weapon damage or projectile behavior. These effects show only for the local player; remote-player orb replication is outside this pass.
+
+`make -C tests` runs the shared rule tests and a cgame renderer-recording test. The macOS script `python3 tests/run_visual_smoke.py` runs real QVMs on OpenArena's `oa_dm3` and captures the rendered output. Its receipt reports command-flow checks separately from visual inspection.
 
 ## Orbs (design target)
 

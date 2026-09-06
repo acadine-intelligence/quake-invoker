@@ -512,8 +512,10 @@ typedef struct {
 	int			weaponSelect;
 
 	// Quake Invoker: orb slots as last reported by the server ("orbs" command)
-	int			orbSlots[3];
+	int			orbSlots[INVOKE_SLOTS];
 	int			orbChangeTime;		// cg.time when slots last changed, for HUD flash
+	int			invokedSlots[INVOKE_SLOTS];
+	int			invokeEffectEndTime;
 
 	// auto rotating items
 	vec3_t		autoAngles;
@@ -1132,6 +1134,7 @@ extern	vmCvar_t		cg_gun_x;
 extern	vmCvar_t		cg_gun_y;
 extern	vmCvar_t		cg_gun_z;
 extern	vmCvar_t		cg_drawGun;
+extern	vmCvar_t		cg_invokeEffects;
 extern	vmCvar_t		cg_viewsize;
 extern	vmCvar_t		cg_tracerChance;
 extern	vmCvar_t		cg_tracerWidth;
@@ -1284,6 +1287,13 @@ void CG_AddLagometerSnapshotInfo( snapshot_t *snap );
 void CG_CenterPrint( const char *str, int y, int charWidth );
 void CG_DrawHead( float x, float y, float w, float h, int clientNum, vec3_t headAngles );
 void CG_DrawActive( stereoFrame_t stereoView );
+
+// cg_invoke.c: local presentation of server-confirmed invocations
+void CG_ResetInvokeEffects( void );
+void CG_SetOrbSlots( int a, int b, int c );
+void CG_InvokeWeapon( int weapon );
+void CG_AddInvokeEffects( void );
+void CG_DrawOrbs( void );
 void CG_DrawFlagModel( float x, float y, float w, float h, int team, qboolean force2D );
 void CG_DrawTeamBackground( int x, int y, int w, int h, float alpha, int team );
 void CG_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y, int ownerDraw, int ownerDrawFlags, int align, float special, float scale, vec4_t color, qhandle_t shader, int textStyle);

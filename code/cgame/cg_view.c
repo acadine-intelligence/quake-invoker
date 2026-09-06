@@ -820,6 +820,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		CG_AddLocalEntities();
 	}
 	CG_AddViewWeapon( &cg.predictedPlayerState );
+	CG_AddInvokeEffects();
 
 	// add buffered sounds
 	CG_PlayBufferedSounds();

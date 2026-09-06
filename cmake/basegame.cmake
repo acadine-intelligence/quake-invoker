@@ -19,6 +19,7 @@ set(CGAME_SOURCES
     ${SOURCE_DIR}/cgame/cg_ents.c
     ${SOURCE_DIR}/cgame/cg_event.c
     ${SOURCE_DIR}/cgame/cg_info.c
+    ${SOURCE_DIR}/cgame/cg_invoke.c
     ${SOURCE_DIR}/cgame/cg_localents.c
     ${SOURCE_DIR}/cgame/cg_marks.c
     ${SOURCE_DIR}/cgame/cg_particles.c
