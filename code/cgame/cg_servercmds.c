@@ -462,6 +462,7 @@ static void CG_MapRestart( void ) {
 	CG_InitLocalEntities();
 	CG_InitMarkPolys();
 	CG_ClearParticles ();
+	CG_ResetInvokeEffects();
 
 	// make sure the "3 frags left" warnings play again
 	cg.fraglimitWarnings = 0;
@@ -1015,17 +1016,13 @@ static void CG_ServerCommand( void ) {
 
 	// Quake Invoker: server reports the held orbs after every orb push / spawn
 	if ( !strcmp( cmd, "orbs" ) ) {
-		cg.orbSlots[0] = atoi( CG_Argv(1) );
-		cg.orbSlots[1] = atoi( CG_Argv(2) );
-		cg.orbSlots[2] = atoi( CG_Argv(3) );
-		cg.orbChangeTime = cg.time;
+		CG_SetOrbSlots( atoi( CG_Argv(1) ), atoi( CG_Argv(2) ), atoi( CG_Argv(3) ) );
 		return;
 	}
 
 	// Quake Invoker: server granted an invoked weapon; the snapshot carries it
 	if ( !strcmp( cmd, "invoked" ) ) {
-		cg.weaponSelect = atoi( CG_Argv(1) );
-		cg.weaponSelectTime = cg.time;
+		CG_InvokeWeapon( atoi( CG_Argv(1) ) );
 		return;
 	}
 
