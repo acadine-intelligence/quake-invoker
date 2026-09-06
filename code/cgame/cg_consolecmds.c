@@ -549,6 +549,8 @@ void CG_InitConsoleCommands( void ) {
 	// forwarded to the server after they are not recognized locally
 	//
 	trap_AddCommand ("kill");
+	trap_AddCommand ("orb");		// Quake Invoker
+	trap_AddCommand ("invoke");		// Quake Invoker
 	trap_AddCommand ("say");
 	trap_AddCommand ("say_team");
 	trap_AddCommand ("tell");

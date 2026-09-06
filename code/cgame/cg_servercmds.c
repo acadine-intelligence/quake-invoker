@@ -1013,6 +1013,22 @@ static void CG_ServerCommand( void ) {
 		return;
 	}
 
+	// Quake Invoker: server reports the held orbs after every orb push / spawn
+	if ( !strcmp( cmd, "orbs" ) ) {
+		cg.orbSlots[0] = atoi( CG_Argv(1) );
+		cg.orbSlots[1] = atoi( CG_Argv(2) );
+		cg.orbSlots[2] = atoi( CG_Argv(3) );
+		cg.orbChangeTime = cg.time;
+		return;
+	}
+
+	// Quake Invoker: server granted an invoked weapon; the snapshot carries it
+	if ( !strcmp( cmd, "invoked" ) ) {
+		cg.weaponSelect = atoi( CG_Argv(1) );
+		cg.weaponSelectTime = cg.time;
+		return;
+	}
+
 	if ( !strcmp( cmd, "print" ) ) {
 		CG_Printf( "%s", CG_Argv(1) );
 #ifdef MISSIONPACK

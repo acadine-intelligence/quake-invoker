@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../qcommon/q_shared.h"
 #include "../renderercommon/tr_types.h"
 #include "../game/bg_public.h"
+#include "../game/bg_invoke.h"
 #include "cg_public.h"
 
 
@@ -509,6 +510,10 @@ typedef struct {
 
 	// input state sent to server
 	int			weaponSelect;
+
+	// Quake Invoker: orb slots as last reported by the server ("orbs" command)
+	int			orbSlots[3];
+	int			orbChangeTime;		// cg.time when slots last changed, for HUD flash
 
 	// auto rotating items
 	vec3_t		autoAngles;

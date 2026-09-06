@@ -1424,6 +1424,49 @@ static void CG_DrawHoldableItem( void ) {
 	}
 
 }
+
+/*
+===================
+CG_DrawOrbs
+
+Quake Invoker: three orb slots above the status bar, plus the name of the
+invocation the current slots would produce.
+===================
+*/
+static void CG_DrawOrbs( void ) {
+	const invocation_t	*inv;
+	vec4_t				color;
+	char				letters[INVOKE_SLOTS * 2 + 1];
+	int					i, x, y, w;
+	float				flash;
+
+	// slot letters, e.g. "Q W E" or "- - Q"
+	for ( i = 0; i < INVOKE_SLOTS; i++ ) {
+		letters[i * 2] = BG_OrbLetter( cg.orbSlots[i] );
+		letters[i * 2 + 1] = ' ';
+	}
+	letters[INVOKE_SLOTS * 2 - 1] = '\0';
+
+	// brief brighten after a change
+	flash = 1.0f - ( cg.time - cg.orbChangeTime ) / 400.0f;
+	if ( flash < 0 ) flash = 0;
+
+	x = 320 - ( INVOKE_SLOTS * 2 - 1 ) * BIGCHAR_WIDTH / 2;
+	y = SCREEN_HEIGHT - 96;
+
+	color[0] = 0.6f + 0.4f * flash;
+	color[1] = 0.8f + 0.2f * flash;
+	color[2] = 1.0f;
+	color[3] = 1.0f;
+	CG_DrawBigStringColor( x, y, letters, color );
+
+	inv = BG_FindInvocation( cg.orbSlots );
+	if ( inv ) {
+		w = CG_DrawStrlen( inv->name ) * SMALLCHAR_WIDTH;
+		color[0] = 1.0f; color[1] = 0.9f; color[2] = 0.5f; color[3] = 1.0f;
+		CG_DrawSmallStringColor( 320 - w / 2, y + BIGCHAR_HEIGHT + 2, inv->name, color );
+	}
+}
 #endif // MISSIONPACK
 
 #ifdef MISSIONPACK
@@ -2577,6 +2620,7 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 
 #ifndef MISSIONPACK
 			CG_DrawHoldableItem();
+			CG_DrawOrbs();
 #else
 			//CG_DrawPersistantPowerup();
 #endif

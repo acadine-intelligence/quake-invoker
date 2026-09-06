@@ -8,6 +8,7 @@ include(utils/set_output_dirs)
 set(CGAME_SOURCES
     ${SOURCE_DIR}/cgame/cg_main.c
     ${SOURCE_DIR}/game/bg_misc.c
+    ${SOURCE_DIR}/game/bg_invoke.c
     ${SOURCE_DIR}/game/bg_pmove.c
     ${SOURCE_DIR}/game/bg_slidemove.c
     ${SOURCE_DIR}/game/bg_lib.c
@@ -44,10 +45,12 @@ set(GAME_SOURCES
     ${SOURCE_DIR}/game/ai_team.c
     ${SOURCE_DIR}/game/ai_vcmd.c
     ${SOURCE_DIR}/game/bg_misc.c
+    ${SOURCE_DIR}/game/bg_invoke.c
     ${SOURCE_DIR}/game/bg_pmove.c
     ${SOURCE_DIR}/game/bg_slidemove.c
     ${SOURCE_DIR}/game/bg_lib.c
     ${SOURCE_DIR}/game/g_active.c
+    ${SOURCE_DIR}/game/g_invoke.c
     ${SOURCE_DIR}/game/g_arenas.c
     ${SOURCE_DIR}/game/g_bot.c
     ${SOURCE_DIR}/game/g_client.c

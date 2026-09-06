@@ -1,8 +1,30 @@
 # 01 Invoker mechanics (draft)
 
-Status: draft for discussion. Nothing here is implemented.
+Status: slice 1 implemented and verified in-engine (2026-09-05). Weapons are stock placeholders; the design intent per combo below is the target, not the current behavior.
 
-## Orbs
+## What slice 1 proves
+
+- `orb <q|w|e>` and `invoke` client commands (`code/game/g_invoke.c`), pushed through the normal client command path.
+- Orb state lives in a game-owned per-client table (`g_invoke[]`). It must NOT live in `gclient_t` trailing fields: the QVM and native layouts disagree there and the engine stomps it mid-frame (found the hard way, commit history on the slice branch).
+- Order-independent combo lookup in `code/game/bg_invoke.c` (shared by game and cgame, unit-tested host-side by `make -C tests`).
+- HUD: three slot letters + the pending invocation's name (`CG_DrawOrbs` in `code/cgame/cg_draw.c`).
+- One live invoked weapon at a time; invoking a different weapon drops the previous one. Machinegun and gauntlet (spawn weapons) are never dropped.
+
+## In-engine test (scripted, repeatable)
+
+```bash
+# from the repo root, with OA data installed per docs/design/03-playable.md:
+cmake --build build -j8 --target qagameqvm_baseq3 cgameqvm_baseq3 uiqvm_baseq3
+mkdir -p build/Release/invoker/vm && cp build/Release/baseq3/vm/*.qvm build/Release/invoker/vm/
+# then launch:
+#   build/Release/ioquake3.app with: +set com_basegame baseoa +set fs_game invoker +set sv_pure 0
+#     +map oa_dm3
+# console: orb q / orb q / orb e / invoke  -> expect "invoked Frost Rockets (QQE)", rocket launcher in hand
+```
+
+Key bindings are not shipped yet; run `bind q "orb q"` etc. or use the console commands.
+
+## Orbs (design target)
 
 Three orb types, three slots. Pressing an orb key pushes that orb into the slots and drops the oldest. Order does not matter for the invocation, only the multiset (same as DotA Invoker).
 
