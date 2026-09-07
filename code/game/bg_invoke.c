@@ -35,16 +35,16 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // Weapons are stock so the loop plays on unmodified content; the design
 // intent per combo is in docs/design/01-invoker-mechanics.md.
 const invocation_t bg_invocations[] = {
-	{ {0,3,0,0}, WP_GAUNTLET,			-1,	"Frost Wall",		"QQQ" },
-	{ {0,0,3,0}, WP_MACHINEGUN,			100,"Blink Dash",		"WWW" },
-	{ {0,0,0,3}, WP_BFG,				10,	"Sunstrike",		"EEE" },
-	{ {0,2,1,0}, WP_PLASMAGUN,			60,	"Ice Shards",		"QQW" },
-	{ {0,2,0,1}, WP_ROCKET_LAUNCHER,	15,	"Frost Rockets",	"QQE" },
-	{ {0,1,2,0}, WP_GRENADE_LAUNCHER,	10,	"Tornado",			"WWQ" },
-	{ {0,0,2,1}, WP_LIGHTNING,			120,"Chaos Lightning",	"WWE" },
-	{ {0,1,0,2}, WP_SHOTGUN,			15,	"Meteor",			"EEQ" },
-	{ {0,0,1,2}, WP_RAILGUN,			10,	"Alacrity",			"EEW" },
-	{ {0,1,1,1}, WP_RAILGUN,			10,	"Deafening Blast",	"QWE" },
+	{ {0,3,0,0}, WP_GAUNTLET,			-1,	"Gauntlet",			"QQQ" },
+	{ {0,0,3,0}, WP_MACHINEGUN,			100,"Machinegun",		"WWW" },
+	{ {0,0,0,3}, WP_BFG,				10,	"BFG10K",			"EEE" },
+	{ {0,2,1,0}, WP_PLASMAGUN,			60,	"Plasma Gun",		"QQW" },
+	{ {0,2,0,1}, WP_ROCKET_LAUNCHER,	15,	"Rocket Launcher",	"QQE" },
+	{ {0,1,2,0}, WP_GRENADE_LAUNCHER,	10,	"Grenade Launcher",	"WWQ" },
+	{ {0,0,2,1}, WP_LIGHTNING,			120,"Lightning Gun",	"WWE" },
+	{ {0,1,0,2}, WP_SHOTGUN,			15,	"Shotgun",			"EEQ" },
+	{ {0,0,1,2}, WP_RAILGUN,			10,	"Railgun",			"EEW" },
+	{ {0,1,1,1}, WP_RAILGUN,			10,	"Railgun",			"QWE" },
 };
 const int bg_numInvocations = ARRAY_LEN( bg_invocations );
 
@@ -145,5 +145,122 @@ orbType_t BG_OrbFromString( const char *s ) {
 	case 'w': case 'W':	return ORB_WEX;
 	case 'e': case 'E':	return ORB_EXORT;
 	default:			return ORB_NONE;
+	}
+}
+
+void BG_InvokeHandsReset( invokeHands_t *hands ) {
+	if ( !hands ) {
+		return;
+	}
+	Com_Memset( hands, 0, sizeof( *hands ) );
+}
+
+int BG_InvokeHandWeapon( const invokeHands_t *hands, int hand ) {
+	int weapon;
+
+	if ( !hands || hand < 0 || hand >= INVOKE_HANDS ) {
+		return WP_NONE;
+	}
+	weapon = hands->weapon[hand];
+	if ( weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+		return WP_NONE;
+	}
+	return weapon;
+}
+
+int BG_InvokeEquipHand( invokeHands_t *hands, int hand, int weapon,
+	int initialAmmo, int ammo[WP_NUM_WEAPONS], int *weaponBits ) {
+	unsigned int bit;
+
+	if ( !hands || !ammo || !weaponBits || hand < 0 || hand >= INVOKE_HANDS
+		|| weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS || initialAmmo < -1 ) {
+		return 0;
+	}
+	bit = 1u << weapon;
+	if ( !( hands->grantedWeapons & bit ) ) {
+		*weaponBits |= (int)bit;
+		if ( initialAmmo < 0 ) {
+			ammo[weapon] = -1;
+		} else if ( ammo[weapon] < initialAmmo ) {
+			ammo[weapon] = initialAmmo;
+		}
+		hands->grantedWeapons |= bit;
+	}
+	hands->weapon[hand] = weapon;
+	return 1;
+}
+
+void BG_InvokeSwapHands( invokeHands_t *hands ) {
+	int weapon;
+
+	if ( !hands ) {
+		return;
+	}
+	weapon = hands->weapon[INVOKE_HAND_LEFT];
+	hands->weapon[INVOKE_HAND_LEFT] = hands->weapon[INVOKE_HAND_RIGHT];
+	hands->weapon[INVOKE_HAND_RIGHT] = weapon;
+}
+
+int BG_InvokePackedHands( const invokeHands_t *hands ) {
+	return BG_InvokeHandWeapon( hands, INVOKE_HAND_LEFT )
+		| ( BG_InvokeHandWeapon( hands, INVOKE_HAND_RIGHT ) << 4 );
+}
+
+int BG_InvokeWeaponCooldown( int weapon ) {
+	switch ( weapon ) {
+	case WP_LIGHTNING:			return 50;
+	case WP_MACHINEGUN:			return 100;
+	case WP_PLASMAGUN:			return 100;
+	case WP_BFG:				return 200;
+	case WP_GAUNTLET:			return 400;
+	case WP_GRENADE_LAUNCHER:	return 800;
+	case WP_ROCKET_LAUNCHER:	return 800;
+	case WP_SHOTGUN:			return 1000;
+	case WP_RAILGUN:			return 1500;
+	default:				return 0;
+	}
+}
+
+invokeFireResult_t BG_InvokeTryFire( invokeHands_t *hands, int hand, int now,
+	int cooldown, int ammo[WP_NUM_WEAPONS], int *firedWeapon ) {
+	int weapon;
+
+	if ( firedWeapon ) {
+		*firedWeapon = WP_NONE;
+	}
+	if ( !hands || !ammo || !firedWeapon || hand < 0 || hand >= INVOKE_HANDS
+		|| now < 0 || cooldown <= 0 ) {
+		return INVOKE_FIRE_INVALID;
+	}
+	weapon = BG_InvokeHandWeapon( hands, hand );
+	if ( weapon == WP_NONE ) {
+		return INVOKE_FIRE_EMPTY;
+	}
+	if ( now < hands->nextFireTime[weapon] ) {
+		return INVOKE_FIRE_COOLDOWN;
+	}
+	if ( ammo[weapon] == 0 ) {
+		return INVOKE_FIRE_NO_AMMO;
+	}
+	if ( ammo[weapon] > 0 ) {
+		ammo[weapon]--;
+	}
+	hands->nextFireTime[weapon] = now + cooldown;
+	*firedWeapon = weapon;
+	return INVOKE_FIRE_OK;
+}
+
+const char *BG_InvokeWeaponName( int weapon ) {
+	switch ( weapon ) {
+	case WP_GAUNTLET:			return "Gauntlet";
+	case WP_MACHINEGUN:			return "Machinegun";
+	case WP_SHOTGUN:			return "Shotgun";
+	case WP_GRENADE_LAUNCHER:	return "Grenade Launcher";
+	case WP_ROCKET_LAUNCHER:	return "Rocket Launcher";
+	case WP_LIGHTNING:			return "Lightning Gun";
+	case WP_RAILGUN:			return "Railgun";
+	case WP_PLASMAGUN:			return "Plasma Gun";
+	case WP_BFG:				return "BFG10K";
+	default:				return "Empty";
 	}
 }

@@ -811,6 +811,14 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		DEBUGNAME("EV_FIRE_WEAPON");
 		CG_FireWeapon( cent );
 		break;
+	case EV_FIRE_INVOKE_LEFT:
+		DEBUGNAME("EV_FIRE_INVOKE_LEFT");
+		CG_FireInvokeWeapon( cent, INVOKE_HAND_LEFT, es->eventParm );
+		break;
+	case EV_FIRE_INVOKE_RIGHT:
+		DEBUGNAME("EV_FIRE_INVOKE_RIGHT");
+		CG_FireInvokeWeapon( cent, INVOKE_HAND_RIGHT, es->eventParm );
+		break;
 
 	case EV_USE_ITEM0:
 		DEBUGNAME("EV_USE_ITEM0");
@@ -1279,4 +1287,3 @@ void CG_CheckEvents( centity_t *cent ) {
 
 	CG_EntityEvent( cent, cent->lerpOrigin );
 }
-

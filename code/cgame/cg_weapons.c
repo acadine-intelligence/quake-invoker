@@ -1195,17 +1195,18 @@ The main player will have this called for BOTH cases, so effects like light and
 sound should only be done on the world model case.
 =============
 */
-void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent, int team ) {
+static void CG_AddPlayerWeaponSingle( refEntity_t *parent, playerState_t *ps,
+	centity_t *cent, int team, weapon_t weaponNum, int invokeHand ) {
 	refEntity_t	gun;
 	refEntity_t	barrel;
 	refEntity_t	flash;
 	vec3_t		angles;
-	weapon_t	weaponNum;
 	weaponInfo_t	*weapon;
 	centity_t	*nonPredictedCent;
+	centity_t	boltCent;
 	orientation_t	lerped;
-
-	weaponNum = cent->currentState.weapon;
+	int			clientNum, muzzleFlashTime, firing, delta;
+	float		kick;
 
 	CG_RegisterWeapon( weaponNum );
 	weapon = &cg_weapons[weaponNum];
@@ -1236,10 +1237,20 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 		return;
 	}
 
+	clientNum = cent->currentState.clientNum;
+	muzzleFlashTime = cent->muzzleFlashTime;
+	firing = ( cent->currentState.eFlags & EF_FIRING ) != 0;
+	if ( invokeHand >= 0 && invokeHand < INVOKE_HANDS
+		&& clientNum >= 0 && clientNum < MAX_CLIENTS ) {
+		muzzleFlashTime = cg.invokeHandFireTime[clientNum][invokeHand];
+		firing = muzzleFlashTime > 0 && cg.time - muzzleFlashTime
+			<= BG_InvokeWeaponCooldown( weaponNum ) + 60;
+	}
+
 	if ( !ps ) {
 		// add weapon ready sound
 		cent->pe.lightningFiring = qfalse;
-		if ( ( cent->currentState.eFlags & EF_FIRING ) && weapon->firingSound ) {
+		if ( firing && weapon->firingSound ) {
 			// lightning gun and guantlet make a different sound when fire is held down
 			trap_S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin, vec3_origin, weapon->firingSound );
 			cent->pe.lightningFiring = qtrue;
@@ -1255,7 +1266,11 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	VectorMA(gun.origin, lerped.origin[0], parent->axis[0], gun.origin);
 
 	// Make weapon appear left-handed for 2 and centered for 3
-	if(ps && cg_drawGun.integer == 2)
+	if ( invokeHand == INVOKE_HAND_LEFT )
+		VectorMA(gun.origin, fabs( lerped.origin[1] ) + 4, parent->axis[1], gun.origin);
+	else if ( invokeHand == INVOKE_HAND_RIGHT )
+		VectorMA(gun.origin, -fabs( lerped.origin[1] ) - 4, parent->axis[1], gun.origin);
+	else if(ps && cg_drawGun.integer == 2)
 		VectorMA(gun.origin, -lerped.origin[1], parent->axis[1], gun.origin);
 	else if(!ps || cg_drawGun.integer != 3)
 	       	VectorMA(gun.origin, lerped.origin[1], parent->axis[1], gun.origin);
@@ -1264,6 +1279,16 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 
 	MatrixMultiply(lerped.axis, ((refEntity_t *)parent)->axis, gun.axis);
 	gun.backlerp = parent->backlerp;
+	if ( ps && invokeHand >= 0 && muzzleFlashTime > 0 ) {
+		delta = cg.time - muzzleFlashTime;
+		if ( delta >= 0 && delta < 120 ) {
+			kick = BG_InvokeWeaponCooldown( weaponNum ) / 400.0f;
+			if ( kick < 0.7f ) kick = 0.7f;
+			if ( kick > 4.0f ) kick = 4.0f;
+			kick *= 1.0f - delta / 120.0f;
+			VectorMA( gun.origin, -kick, parent->axis[0], gun.origin );
+		}
+	}
 
 	CG_AddWeaponWithPowerups( &gun, cent->currentState.powerups );
 
@@ -1297,12 +1322,12 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 
 	// add the flash
 	if ( ( weaponNum == WP_LIGHTNING || weaponNum == WP_GAUNTLET || weaponNum == WP_GRAPPLING_HOOK )
-		&& ( nonPredictedCent->currentState.eFlags & EF_FIRING ) ) 
+		&& firing )
 	{
 		// continuous flash
 	} else {
 		// impulse flash
-		if ( cg.time - cent->muzzleFlashTime > MUZZLE_FLASH_TIME ) {
+		if ( cg.time - muzzleFlashTime > MUZZLE_FLASH_TIME ) {
 			return;
 		}
 	}
@@ -1337,13 +1362,49 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	if ( ps || cg.renderingThirdPerson ||
 		cent->currentState.number != cg.predictedPlayerState.clientNum ) {
 		// add lightning bolt
-		CG_LightningBolt( nonPredictedCent, flash.origin );
+		boltCent = *nonPredictedCent;
+		boltCent.currentState.weapon = weaponNum;
+		CG_LightningBolt( &boltCent, flash.origin );
 
 		if ( weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2] ) {
 			trap_R_AddLightToScene( flash.origin, 300 + (rand()&31), weapon->flashDlightColor[0],
 				weapon->flashDlightColor[1], weapon->flashDlightColor[2] );
 		}
 	}
+}
+
+void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent, int team ) {
+	int clientNum, leftWeapon, rightWeapon;
+	refEntity_t handParent;
+
+	clientNum = cent->currentState.clientNum;
+	if ( clientNum >= 0 && clientNum < MAX_CLIENTS ) {
+		leftWeapon = cg.invokeHandWeapons[clientNum][INVOKE_HAND_LEFT];
+		rightWeapon = cg.invokeHandWeapons[clientNum][INVOKE_HAND_RIGHT];
+		if ( leftWeapon > WP_NONE && leftWeapon < WP_NUM_WEAPONS ) {
+			handParent = *parent;
+			if ( ps ) {
+				CG_RegisterWeapon( leftWeapon );
+				handParent.hModel = cg_weapons[leftWeapon].handsModel;
+			}
+			CG_AddPlayerWeaponSingle( &handParent, ps, cent, team,
+				(weapon_t)leftWeapon, INVOKE_HAND_LEFT );
+		}
+		if ( rightWeapon > WP_NONE && rightWeapon < WP_NUM_WEAPONS ) {
+			handParent = *parent;
+			if ( ps ) {
+				CG_RegisterWeapon( rightWeapon );
+				handParent.hModel = cg_weapons[rightWeapon].handsModel;
+			}
+			CG_AddPlayerWeaponSingle( &handParent, ps, cent, team,
+				(weapon_t)rightWeapon, INVOKE_HAND_RIGHT );
+		}
+		if ( leftWeapon || rightWeapon ) {
+			return;
+		}
+	}
+	CG_AddPlayerWeaponSingle( parent, ps, cent, team,
+		(weapon_t)cent->currentState.weapon, -1 );
 }
 
 /*
@@ -1360,7 +1421,15 @@ void CG_AddViewWeapon( playerState_t *ps ) {
 	float		fovOffset;
 	vec3_t		angles;
 	weaponInfo_t	*weapon;
+	int			viewWeapon;
 
+	if ( ps->stats[STAT_INVOKE_HANDS] & 256 ) {
+		CG_SetInvokeHands( ps->clientNum, ps->stats[STAT_INVOKE_HANDS] & 15,
+			( ps->stats[STAT_INVOKE_HANDS] >> 4 ) & 15 );
+		if ( !( ps->stats[STAT_INVOKE_HANDS] & 255 ) ) {
+			return;
+		}
+	}
 	if ( ps->persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
 		return;
 	}
@@ -1402,8 +1471,15 @@ void CG_AddViewWeapon( playerState_t *ps ) {
 	}
 
 	cent = &cg.predictedPlayerEntity;	// &cg_entities[cg.snap->ps.clientNum];
-	CG_RegisterWeapon( ps->weapon );
-	weapon = &cg_weapons[ ps->weapon ];
+	viewWeapon = cg.invokeHandWeapons[ps->clientNum][INVOKE_HAND_RIGHT];
+	if ( viewWeapon <= WP_NONE || viewWeapon >= WP_NUM_WEAPONS ) {
+		viewWeapon = cg.invokeHandWeapons[ps->clientNum][INVOKE_HAND_LEFT];
+	}
+	if ( viewWeapon <= WP_NONE || viewWeapon >= WP_NUM_WEAPONS ) {
+		viewWeapon = ps->weapon;
+	}
+	CG_RegisterWeapon( viewWeapon );
+	weapon = &cg_weapons[ viewWeapon ];
 
 	memset (&hand, 0, sizeof(hand));
 
@@ -1728,6 +1804,25 @@ void CG_FireWeapon( centity_t *cent ) {
 	if ( weap->ejectBrassFunc && cg_brassTime.integer > 0 ) {
 		weap->ejectBrassFunc( cent );
 	}
+}
+
+void CG_FireInvokeWeapon( centity_t *cent, int hand, int weapon ) {
+	int clientNum, oldWeapon;
+
+	if ( !cent || hand < 0 || hand >= INVOKE_HANDS
+		|| weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+		return;
+	}
+	clientNum = cent->currentState.clientNum;
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS
+		|| cg.invokeHandWeapons[clientNum][hand] != weapon ) {
+		return;
+	}
+	CG_InvokeHandFired( cent, hand, weapon );
+	oldWeapon = cent->currentState.weapon;
+	cent->currentState.weapon = weapon;
+	CG_FireWeapon( cent );
+	cent->currentState.weapon = oldWeapon;
 }
 
 

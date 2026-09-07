@@ -215,7 +215,8 @@ typedef enum {
 	STAT_ARMOR,				
 	STAT_DEAD_YAW,					// look this direction when dead (FIXME: get rid of?)
 	STAT_CLIENTS_READY,				// bit mask of clients wishing to exit the intermission (FIXME: configstring?)
-	STAT_MAX_HEALTH					// health / armor limit, changeable by handicap
+	STAT_MAX_HEALTH,					// health / armor limit, changeable by handicap
+	STAT_INVOKE_HANDS				// two weapon IDs plus active-mode bit
 } statIndex_t;
 
 
@@ -381,6 +382,8 @@ typedef enum {
 	EV_NOAMMO,
 	EV_CHANGE_WEAPON,
 	EV_FIRE_WEAPON,
+	EV_FIRE_INVOKE_LEFT,
+	EV_FIRE_INVOKE_RIGHT,
 
 	EV_USE_ITEM0,
 	EV_USE_ITEM1,
@@ -740,4 +743,3 @@ qboolean	BG_PlayerTouchesItem( playerState_t *ps, entityState_t *item, int atTim
 #define KAMI_SHOCKWAVE_MAXRADIUS		1320
 #define KAMI_BOOMSPHERE_MAXRADIUS		720
 #define KAMI_SHOCKWAVE2_MAXRADIUS		704
-

@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // perform the server side effects of a weapon firing
 
 #include "g_local.h"
+#include "bg_invoke.h"
 
 static	float	s_quadFactor;
 static	vec3_t	forward, right, up;
@@ -799,7 +800,14 @@ void CalcMuzzlePointOrigin ( gentity_t *ent, vec3_t origin, vec3_t localForward,
 FireWeapon
 ===============
 */
-void FireWeapon( gentity_t *ent ) {
+void FireWeaponFromHand( gentity_t *ent, int weapon, int hand ) {
+	int oldWeapon;
+
+	if ( weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+		return;
+	}
+	oldWeapon = ent->s.weapon;
+	ent->s.weapon = weapon;
 	if (ent->client->ps.powerups[PW_QUAD] ) {
 		s_quadFactor = g_quadfactor.value;
 	} else {
@@ -828,6 +836,12 @@ void FireWeapon( gentity_t *ent ) {
 	AngleVectors (ent->client->ps.viewangles, forward, right, up);
 
 	CalcMuzzlePointOrigin ( ent, ent->client->oldOrigin, forward, right, up, muzzle );
+	if ( hand == INVOKE_HAND_LEFT ) {
+		VectorMA( muzzle, -4, right, muzzle );
+	} else if ( hand == INVOKE_HAND_RIGHT ) {
+		VectorMA( muzzle, 4, right, muzzle );
+	}
+	SnapVector( muzzle );
 
 	// fire the specific weapon
 	switch( ent->s.weapon ) {
@@ -880,6 +894,11 @@ void FireWeapon( gentity_t *ent ) {
 // FIXME		G_Error( "Bad ent->s.weapon" );
 		break;
 	}
+	ent->s.weapon = oldWeapon;
+}
+
+void FireWeapon( gentity_t *ent ) {
+	FireWeaponFromHand( ent, ent->s.weapon, -1 );
 }
 
 

@@ -941,6 +941,8 @@ void ClientThink_real( gentity_t *ent ) {
 		Pmove (&pm);
 #endif
 
+	G_InvokeClientThink( ent, ucmd->buttons, ucmd->serverTime );
+
 	// save results of pmove
 	if ( ent->client->ps.eventSequence != oldEventSequence ) {
 		ent->eventTime = level.time;
@@ -1006,7 +1008,8 @@ void ClientThink_real( gentity_t *ent ) {
 			}
 		
 			// pressing attack or use is the normal respawn method
-			if ( ucmd->buttons & ( BUTTON_ATTACK | BUTTON_USE_HOLDABLE ) ) {
+			if ( ucmd->buttons & ( BUTTON_ATTACK | BUTTON_USE_HOLDABLE
+				| BUTTON_INVOKE_LEFT | BUTTON_INVOKE_RIGHT ) ) {
 				ClientRespawn( ent );
 			}
 		}
@@ -1187,5 +1190,4 @@ void ClientEndFrame( gentity_t *ent ) {
 //	i = trap_AAS_PointReachabilityAreaIndex( ent->client->ps.origin );
 //	ent->client->areabits[i >> 3] |= 1 << (i & 7);
 }
-
 

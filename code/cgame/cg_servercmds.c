@@ -1016,13 +1016,25 @@ static void CG_ServerCommand( void ) {
 
 	// Quake Invoker: server reports the held orbs after every orb push / spawn
 	if ( !strcmp( cmd, "orbs" ) ) {
-		CG_SetOrbSlots( atoi( CG_Argv(1) ), atoi( CG_Argv(2) ), atoi( CG_Argv(3) ) );
+		if ( trap_Argc() == 4 ) {
+			CG_SetOrbSlots( atoi( CG_Argv(1) ), atoi( CG_Argv(2) ), atoi( CG_Argv(3) ) );
+		}
 		return;
 	}
 
-	// Quake Invoker: server granted an invoked weapon; the snapshot carries it
+	// Quake Invoker: authoritative hand assignments are broadcast for rendering.
+	if ( !strcmp( cmd, "invhands" ) ) {
+		if ( trap_Argc() == 4 ) {
+			CG_SetInvokeHands( atoi( CG_Argv(1) ), atoi( CG_Argv(2) ), atoi( CG_Argv(3) ) );
+		}
+		return;
+	}
+
+	// Server-confirmed invocation starts the local combination effect.
 	if ( !strcmp( cmd, "invoked" ) ) {
-		CG_InvokeWeapon( atoi( CG_Argv(1) ) );
+		if ( trap_Argc() == 3 ) {
+			CG_InvokeWeapon( atoi( CG_Argv(1) ), atoi( CG_Argv(2) ) );
+		}
 		return;
 	}
 

@@ -39,6 +39,9 @@ static int CG_ValidOrb( int orb ) {
 void CG_ResetInvokeEffects( void ) {
 	memset( cg.orbSlots, 0, sizeof( cg.orbSlots ) );
 	memset( cg.invokedSlots, 0, sizeof( cg.invokedSlots ) );
+	memset( cg.invokeHandWeapons, 0, sizeof( cg.invokeHandWeapons ) );
+	memset( cg.invokeHandFireTime, 0, sizeof( cg.invokeHandFireTime ) );
+	// Physical held keys survive gameplay/visual resets until key-up.
 	cg.orbChangeTime = 0;
 	cg.invokeEffectEndTime = 0;
 }
@@ -54,19 +57,75 @@ void CG_SetOrbSlots( int a, int b, int c ) {
 	}
 }
 
-void CG_InvokeWeapon( int weapon ) {
-	const invocation_t *inv;
-
-	if ( weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+void CG_SetInvokeHands( int clientNum, int leftWeapon, int rightWeapon ) {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
 		return;
 	}
-	cg.weaponSelect = weapon;
-	cg.weaponSelectTime = cg.time;
+	if ( leftWeapon <= WP_NONE || leftWeapon >= WP_NUM_WEAPONS ) {
+		leftWeapon = WP_NONE;
+	}
+	if ( rightWeapon <= WP_NONE || rightWeapon >= WP_NUM_WEAPONS ) {
+		rightWeapon = WP_NONE;
+	}
+	cg.invokeHandWeapons[clientNum][INVOKE_HAND_LEFT] = leftWeapon;
+	cg.invokeHandWeapons[clientNum][INVOKE_HAND_RIGHT] = rightWeapon;
+}
+
+void CG_InvokeWeapon( int hand, int weapon ) {
+	const invocation_t *inv;
+
+	if ( hand < 0 || hand >= INVOKE_HANDS
+		|| weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+		return;
+	}
 	inv = BG_FindInvocation( cg.orbSlots );
 	if ( inv && inv->weapon == weapon ) {
 		memcpy( cg.invokedSlots, cg.orbSlots, sizeof( cg.invokedSlots ) );
 		cg.invokeEffectEndTime = cg.time + INVOKE_FLASH_MSEC;
 	}
+}
+
+void CG_InvokeMovementKey( int moveKey, qboolean down ) {
+	const char *orbCommand;
+
+	if ( !( moveKey & INVOKE_MOVE_ALL ) || ( moveKey & ~INVOKE_MOVE_ALL )
+		|| ( moveKey & ( moveKey - 1 ) ) ) {
+		return;
+	}
+	if ( !down ) {
+		cg.invokeMoveKeys &= ~moveKey;
+		return;
+	}
+	if ( cg.invokeMoveKeys & moveKey ) {
+		return;
+	}
+	cg.invokeMoveKeys |= moveKey;
+	orbCommand = NULL;
+	switch ( moveKey ) {
+	case INVOKE_MOVE_W:	orbCommand = "orb w"; break;
+	case INVOKE_MOVE_A:	orbCommand = "orb e"; break;
+	case INVOKE_MOVE_D:	orbCommand = "orb q"; break;
+	default:		break;
+	}
+	if ( orbCommand ) {
+		trap_SendClientCommand( orbCommand );
+	}
+}
+
+
+void CG_InvokeHandFired( centity_t *cent, int hand, int weapon ) {
+	int clientNum;
+
+	if ( !cent ) {
+		return;
+	}
+	clientNum = cent->currentState.clientNum;
+	if ( hand < 0 || hand >= INVOKE_HANDS || weapon <= WP_NONE
+		|| weapon >= WP_NUM_WEAPONS || clientNum < 0 || clientNum >= MAX_CLIENTS
+		|| cg.invokeHandWeapons[clientNum][hand] != weapon ) {
+		return;
+	}
+	cg.invokeHandFireTime[clientNum][hand] = cg.time;
 }
 
 static qboolean CG_InvokeVisible( void ) {
@@ -181,37 +240,61 @@ void CG_DrawOrbs( void ) {
 	const vec4_t panel = { 0.025f, 0.035f, 0.065f, 0.78f };
 	vec4_t muted = { 0.58f, 0.66f, 0.78f, 1.0f };
 	vec4_t white = { 0.94f, 0.97f, 1.0f, 1.0f };
-	char letter[2];
+	int clientNum;
+	const char *leftName, *rightName;
+	vec4_t keyColor;
 
 	if ( !CG_InvokeVisible() ) {
 		return;
 	}
 	flash = cg_invokeEffects.integer ? CG_InvokeFlash() : 0;
-	CG_FillRect( 16, 276, 200, 108, panel );
-	CG_DrawSmallStringColor( 28, 280, "INVOKER", muted );
+	CG_FillRect( 16, 72, 186, 180, panel );
+	CG_DrawStringExt( 24, 78, "INVOKER", muted, qtrue, qtrue, 6, 10, 0 );
 	for ( i = 0; i < INVOKE_SLOTS; i++ ) {
 		orb = CG_ValidOrb( cg.orbSlots[i] );
 		memcpy( color, orbColors[orb], sizeof( color ) );
-		x = 52 + i * 60;
+		x = 48 + i * 60;
 		pulse = ( cg.time - cg.orbChangeTime ) / 300.0f;
 		pulse = pulse >= 0 && pulse < 1 && cg_invokeEffects.integer ? 1 - pulse : 0;
-		size = 38 + 8 * pulse + 8 * flash;
+		size = 28 + 6 * pulse + 6 * flash;
 		trap_R_SetColor( color );
-		CG_DrawPic( x - size / 2, 317 - size / 2, size, size, cgs.media.railRingsShader );
+		CG_DrawPic( x - size / 2, 110 - size / 2, size, size, cgs.media.railRingsShader );
 		trap_R_SetColor( NULL );
-		letter[0] = BG_OrbLetter( orb );
-		letter[1] = '\0';
-		CG_DrawStringExt( x - 6, 309, letter, white, qtrue, qtrue, 12, 16, 0 );
 	}
 	inv = BG_FindInvocation( cg.orbSlots );
 	text = inv ? va( "READY %s", inv->name ) : "Choose an orb";
-	CG_DrawSmallStringColor( 28, 344, text, white );
+	CG_DrawStringExt( 24, 134, text, white, qtrue, qtrue, 6, 10, 0 );
 	inv = BG_FindInvocation( cg.invokedSlots );
 	text = inv ? va( "CAST %s", inv->name ) : "Invoke to equip";
-	CG_DrawSmallStringColor( 28, 362, text, muted );
+	CG_DrawStringExt( 24, 147, text, muted, qtrue, qtrue, 6, 10, 0 );
+
+	clientNum = cg.snap->ps.clientNum;
+	leftName = BG_InvokeWeaponName( cg.invokeHandWeapons[clientNum][INVOKE_HAND_LEFT] );
+	rightName = BG_InvokeWeaponName( cg.invokeHandWeapons[clientNum][INVOKE_HAND_RIGHT] );
+	CG_DrawStringExt( 24, 165, va( "LEFT %s [%d]", leftName, cg.snap->ps.ammo[cg.invokeHandWeapons[clientNum][INVOKE_HAND_LEFT]] ), white, qtrue, qtrue, 6, 10, 0 );
+	CG_DrawStringExt( 24, 178, va( "RIGHT %s [%d]", rightName, cg.snap->ps.ammo[cg.invokeHandWeapons[clientNum][INVOKE_HAND_RIGHT]] ), white, qtrue, qtrue, 6, 10, 0 );
+
+	memcpy( keyColor, orbColors[ORB_WEX], sizeof( keyColor ) );
+	keyColor[3] = ( cg.invokeMoveKeys & INVOKE_MOVE_W ) ? 0.9f : 0.20f;
+	CG_FillRect( 96, 191, 20, 16, keyColor );
+	CG_DrawStringExt( 102, 192, "W", white, qtrue, qtrue, 8, 12, 0 );
+	memcpy( keyColor, orbColors[ORB_EXORT], sizeof( keyColor ) );
+	keyColor[3] = ( cg.invokeMoveKeys & INVOKE_MOVE_A ) ? 0.9f : 0.20f;
+	CG_FillRect( 72, 209, 20, 16, keyColor );
+	CG_DrawStringExt( 78, 210, "A", white, qtrue, qtrue, 8, 12, 0 );
+	keyColor[0] = 0.65f; keyColor[1] = 0.68f; keyColor[2] = 0.72f;
+	keyColor[3] = ( cg.invokeMoveKeys & INVOKE_MOVE_S ) ? 0.9f : 0.20f;
+	CG_FillRect( 96, 209, 20, 16, keyColor );
+	CG_DrawStringExt( 102, 210, "S", white, qtrue, qtrue, 8, 12, 0 );
+	memcpy( keyColor, orbColors[ORB_QUAS], sizeof( keyColor ) );
+	keyColor[3] = ( cg.invokeMoveKeys & INVOKE_MOVE_D ) ? 0.9f : 0.20f;
+	CG_FillRect( 120, 209, 20, 16, keyColor );
+	CG_DrawStringExt( 126, 210, "D", white, qtrue, qtrue, 8, 12, 0 );
+	CG_DrawStringExt( 24, 230, "R invoke RIGHT  T swap", muted, qtrue, qtrue, 6, 10, 0 );
+	CG_DrawStringExt( 24, 241, "M1 LEFT / M2 RIGHT", muted, qtrue, qtrue, 6, 10, 0 );
 	if ( flash ) {
 		color[0] = 0.65f; color[1] = 0.80f; color[2] = 1.0f; color[3] = flash;
-		CG_FillRect( 16, 382, 200 * flash, 2, color );
+		CG_FillRect( 16, 250, 186 * flash, 2, color );
 	}
 	trap_R_SetColor( NULL );
 }

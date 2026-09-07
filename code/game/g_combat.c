@@ -463,6 +463,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	}
 #endif
 	self->client->ps.pm_type = PM_DEAD;
+	G_InvokeReset( self );
 
 	if ( attacker ) {
 		killer = attacker->s.number;

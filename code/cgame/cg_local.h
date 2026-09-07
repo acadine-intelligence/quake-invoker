@@ -516,6 +516,9 @@ typedef struct {
 	int			orbChangeTime;		// cg.time when slots last changed, for HUD flash
 	int			invokedSlots[INVOKE_SLOTS];
 	int			invokeEffectEndTime;
+	int			invokeMoveKeys;
+	int			invokeHandWeapons[MAX_CLIENTS][INVOKE_HANDS];
+	int			invokeHandFireTime[MAX_CLIENTS][INVOKE_HANDS];
 
 	// auto rotating items
 	vec3_t		autoAngles;
@@ -1291,7 +1294,10 @@ void CG_DrawActive( stereoFrame_t stereoView );
 // cg_invoke.c: local presentation of server-confirmed invocations
 void CG_ResetInvokeEffects( void );
 void CG_SetOrbSlots( int a, int b, int c );
-void CG_InvokeWeapon( int weapon );
+void CG_SetInvokeHands( int clientNum, int leftWeapon, int rightWeapon );
+void CG_InvokeWeapon( int hand, int weapon );
+void CG_InvokeMovementKey( int moveKey, qboolean down );
+void CG_InvokeHandFired( centity_t *cent, int hand, int weapon );
 void CG_AddInvokeEffects( void );
 void CG_DrawOrbs( void );
 void CG_DrawFlagModel( float x, float y, float w, float h, int team, qboolean force2D );
@@ -1376,6 +1382,7 @@ void CG_RegisterWeapon( int weaponNum );
 void CG_RegisterItemVisuals( int itemNum );
 
 void CG_FireWeapon( centity_t *cent );
+void CG_FireInvokeWeapon( centity_t *cent, int hand, int weapon );
 void CG_MissileHitWall( int weapon, int clientNum, vec3_t origin, vec3_t dir, impactSound_t soundType );
 void CG_MissileHitPlayer( int weapon, vec3_t origin, vec3_t dir, int entityNum );
 void CG_ShotgunFire( entityState_t *es );
@@ -1701,5 +1708,3 @@ void	CG_ParticleMisc (qhandle_t pshader, vec3_t origin, int size, int duration, 
 void	CG_ParticleExplosion (char *animStr, vec3_t origin, vec3_t vel, int duration, int sizeStart, int sizeEnd);
 extern qboolean		initparticles;
 int CG_NewParticleArea ( int num );
-
-

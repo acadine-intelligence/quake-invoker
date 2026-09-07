@@ -450,7 +450,24 @@ typedef struct {
 	void	(*function)(void);
 } consoleCommand_t;
 
+static void CG_InvokeWDown_f( void ) { CG_InvokeMovementKey( INVOKE_MOVE_W, qtrue ); }
+static void CG_InvokeWUp_f( void ) { CG_InvokeMovementKey( INVOKE_MOVE_W, qfalse ); }
+static void CG_InvokeADown_f( void ) { CG_InvokeMovementKey( INVOKE_MOVE_A, qtrue ); }
+static void CG_InvokeAUp_f( void ) { CG_InvokeMovementKey( INVOKE_MOVE_A, qfalse ); }
+static void CG_InvokeSDown_f( void ) { CG_InvokeMovementKey( INVOKE_MOVE_S, qtrue ); }
+static void CG_InvokeSUp_f( void ) { CG_InvokeMovementKey( INVOKE_MOVE_S, qfalse ); }
+static void CG_InvokeDDown_f( void ) { CG_InvokeMovementKey( INVOKE_MOVE_D, qtrue ); }
+static void CG_InvokeDUp_f( void ) { CG_InvokeMovementKey( INVOKE_MOVE_D, qfalse ); }
+
 static consoleCommand_t	commands[] = {
+	{ "+invw", CG_InvokeWDown_f },
+	{ "-invw", CG_InvokeWUp_f },
+	{ "+inva", CG_InvokeADown_f },
+	{ "-inva", CG_InvokeAUp_f },
+	{ "+invs", CG_InvokeSDown_f },
+	{ "-invs", CG_InvokeSUp_f },
+	{ "+invd", CG_InvokeDDown_f },
+	{ "-invd", CG_InvokeDUp_f },
 	{ "testgun", CG_TestGun_f },
 	{ "testmodel", CG_TestModel_f },
 	{ "nextframe", CG_TestModelNextFrame_f },
@@ -551,6 +568,7 @@ void CG_InitConsoleCommands( void ) {
 	trap_AddCommand ("kill");
 	trap_AddCommand ("orb");		// Quake Invoker
 	trap_AddCommand ("invoke");		// Quake Invoker
+	trap_AddCommand ("invswap");		// Quake Invoker
 	trap_AddCommand ("say");
 	trap_AddCommand ("say_team");
 	trap_AddCommand ("tell");

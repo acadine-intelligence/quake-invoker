@@ -24,7 +24,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 // Client commands:
 //   orb <q|w|e>   push an orb into the player's slots
-//   invoke        grant the weapon matching the held orbs and switch to it
+//   invoke        put the weapon matching the held orbs in the right hand
+//   invswap       exchange the left and right hand, including an empty hand
 //
 // State lives in a game-owned per-client table (see below). The client
 // learns the orb slots through the "orbs" server command so it can draw
@@ -39,7 +40,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // Shared struct edits require every dependent QVM source to be rebuilt.
 typedef struct {
 	int		orbSlots[INVOKE_SLOTS];	// orbType_t values, oldest first
-	int		invokedWeapon;			// WP_ granted by last invoke, WP_NONE if none
+	invokeHands_t hands;
 } invokeState_t;
 
 static invokeState_t	g_invoke[MAX_CLIENTS];
@@ -62,6 +63,21 @@ static void G_InvokeSendOrbs( gentity_t *ent ) {
 		st->orbSlots[0], st->orbSlots[1], st->orbSlots[2] ) );
 }
 
+static void G_InvokeSendHands( gentity_t *ent ) {
+	invokeState_t *st;
+	int clientNum;
+
+	clientNum = ent - g_entities;
+	if ( clientNum < 0 || clientNum >= level.maxclients ) {
+		return;
+	}
+	st = G_InvokeState( ent );
+	ent->client->ps.stats[STAT_INVOKE_HANDS] = 256 | BG_InvokePackedHands( &st->hands );
+	trap_SendServerCommand( -1, va( "invhands %i %i %i", clientNum,
+		BG_InvokeHandWeapon( &st->hands, INVOKE_HAND_LEFT ),
+		BG_InvokeHandWeapon( &st->hands, INVOKE_HAND_RIGHT ) ) );
+}
+
 /*
 ==============
 G_InvokeReset
@@ -76,8 +92,9 @@ void G_InvokeReset( gentity_t *ent ) {
 	for ( i = 0; i < INVOKE_SLOTS; i++ ) {
 		st->orbSlots[i] = ORB_NONE;
 	}
-	st->invokedWeapon = WP_NONE;
+	BG_InvokeHandsReset( &st->hands );
 	G_InvokeSendOrbs( ent );
+	G_InvokeSendHands( ent );
 }
 
 /*
@@ -91,6 +108,10 @@ void Cmd_Orb_f( gentity_t *ent ) {
 	orbType_t	orb;
 
 	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR || ent->health <= 0 ) {
+		return;
+	}
+	if ( trap_Argc() != 2 ) {
+		trap_SendServerCommand( ent - g_entities, "print \"usage: orb <q|w|e>\n\"" );
 		return;
 	}
 	trap_Argv( 1, arg, sizeof( arg ) );
@@ -119,32 +140,98 @@ void Cmd_Invoke_f( gentity_t *ent ) {
 	if ( client->sess.sessionTeam == TEAM_SPECTATOR || ent->health <= 0 ) {
 		return;
 	}
+	if ( trap_Argc() != 1 ) {
+		trap_SendServerCommand( ent - g_entities, "print \"usage: invoke\n\"" );
+		return;
+	}
 	inv = BG_FindInvocation( st->orbSlots );
 	if ( !inv ) {
-		trap_SendServerCommand( ent - g_entities, "cp \"Hold an orb first (Q, W or E)\n\"" );
+		trap_SendServerCommand( ent - g_entities, "cp \"Move with D/W/A to choose an orb\n\"" );
 		return;
 	}
 
-	// drop the previous invocation so only one invoked weapon is live.
-	// starting weapons (machinegun, gauntlet) are never removed.
-	if ( st->invokedWeapon > WP_NONE && st->invokedWeapon != inv->weapon
-		&& st->invokedWeapon != WP_MACHINEGUN && st->invokedWeapon != WP_GAUNTLET ) {
-		client->ps.stats[STAT_WEAPONS] &= ~( 1 << st->invokedWeapon );
-		client->ps.ammo[st->invokedWeapon] = 0;
+	if ( !BG_InvokeEquipHand( &st->hands, INVOKE_HAND_RIGHT, inv->weapon,
+		inv->ammo, client->ps.ammo, &client->ps.stats[STAT_WEAPONS] ) ) {
+		return;
 	}
-
-	client->ps.stats[STAT_WEAPONS] |= ( 1 << inv->weapon );
-	if ( inv->ammo < 0 ) {
-		client->ps.ammo[inv->weapon] = -1;
-	} else {
-		client->ps.ammo[inv->weapon] = inv->ammo;
-	}
-	st->invokedWeapon = inv->weapon;
-
-	// The client owns weapon selection (usercmd.weapon drives PM_Weapon), so
-	// tell it which weapon to select; forcing ps.weapon here would be undone
-	// by the next usercmd still carrying the old selection.
+	G_InvokeSendHands( ent );
 	trap_SendServerCommand( ent - g_entities, va( "cp \"%s\n\"", inv->name ) );
-	trap_SendServerCommand( ent - g_entities, va( "invoked %i", inv->weapon ) );
+	trap_SendServerCommand( ent - g_entities, va( "invoked %i %i",
+		INVOKE_HAND_RIGHT, inv->weapon ) );
 	trap_SendServerCommand( ent - g_entities, va( "print \"invoked %s (%s)\n\"", inv->name, inv->combo ) );
+}
+
+void Cmd_InvokeSwap_f( gentity_t *ent ) {
+	invokeState_t *st;
+
+	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR || ent->health <= 0 ) {
+		return;
+	}
+	if ( trap_Argc() != 1 ) {
+		trap_SendServerCommand( ent - g_entities, "print \"usage: invswap\n\"" );
+		return;
+	}
+	st = G_InvokeState( ent );
+	BG_InvokeSwapHands( &st->hands );
+	G_InvokeSendHands( ent );
+}
+
+static int G_InvokeCooldown( gentity_t *ent, int weapon ) {
+	int cooldown;
+
+	cooldown = BG_InvokeWeaponCooldown( weapon );
+#ifdef MISSIONPACK
+	if ( ent->client->persistantPowerup && ent->client->persistantPowerup->item
+		&& ent->client->persistantPowerup->item->giTag == PW_SCOUT ) {
+		cooldown = (int)( cooldown / 1.5f );
+	} else
+#endif
+	if ( ent->client->ps.powerups[PW_HASTE] ) {
+		cooldown = (int)( cooldown / 1.3f );
+	}
+	return cooldown;
+}
+
+static void G_InvokeFireHand( gentity_t *ent, invokeState_t *st, int hand,
+	int commandTime ) {
+	int weapon, cooldown;
+	invokeFireResult_t result;
+
+	weapon = BG_InvokeHandWeapon( &st->hands, hand );
+	cooldown = G_InvokeCooldown( ent, weapon );
+	if ( !cooldown ) {
+		return;
+	}
+	if ( weapon == WP_GAUNTLET ) {
+		if ( commandTime < st->hands.nextFireTime[weapon]
+			|| !ent->client->ps.ammo[weapon] || !CheckGauntletAttack( ent ) ) {
+			return;
+		}
+	}
+	result = BG_InvokeTryFire( &st->hands, hand, commandTime, cooldown,
+		ent->client->ps.ammo, &weapon );
+	if ( result != INVOKE_FIRE_OK ) {
+		return;
+	}
+	FireWeaponFromHand( ent, weapon, hand );
+	G_AddPredictableEvent( ent, hand == INVOKE_HAND_LEFT
+		? EV_FIRE_INVOKE_LEFT : EV_FIRE_INVOKE_RIGHT, weapon );
+}
+
+void G_InvokeClientThink( gentity_t *ent, int buttons, int commandTime ) {
+	invokeState_t *st;
+
+	if ( !ent || !ent->client || commandTime < 0 || ent->health <= 0
+		|| ent->client->sess.sessionTeam == TEAM_SPECTATOR
+		|| ent->client->ps.pm_type != PM_NORMAL
+		|| ( ent->client->ps.pm_flags & PMF_RESPAWNED ) ) {
+		return;
+	}
+	st = G_InvokeState( ent );
+	if ( buttons & BUTTON_INVOKE_LEFT ) {
+		G_InvokeFireHand( ent, st, INVOKE_HAND_LEFT, commandTime );
+	}
+	if ( buttons & BUTTON_INVOKE_RIGHT ) {
+		G_InvokeFireHand( ent, st, INVOKE_HAND_RIGHT, commandTime );
+	}
 }

@@ -9,8 +9,10 @@ vmCvar_t cg_invokeEffects;
 static snapshot_t snapshot;
 static refEntity_t entities[64];
 static int entityCount, lightCount, hudCount, checks;
+static int clientCommandCount;
 static float intensity;
 static char hudText[256];
+static char clientCommands[8][32];
 
 #define CHECK(c) do { checks++; assert(c); } while (0)
 
@@ -33,8 +35,11 @@ void CG_FillRect( float x, float y, float w, float h, const float *color ) {
 }
 void CG_DrawStringExt( int x, int y, const char *s, const float *color,
 	qboolean force, qboolean shadow, int w, int h, int maxChars ) {
-	(void)x; (void)y; (void)s; (void)color; (void)force; (void)shadow;
+	(void)x; (void)y; (void)color; (void)force; (void)shadow;
 	(void)w; (void)h; (void)maxChars;
+	assert( strlen( hudText ) + strlen( s ) + 2 < sizeof( hudText ) );
+	strcat( hudText, s );
+	strcat( hudText, "\n" );
 }
 void CG_DrawSmallStringColor( int x, int y, const char *s, vec4_t color ) {
 	(void)x; (void)y; (void)color;
@@ -49,6 +54,11 @@ char * QDECL va( char *format, ... ) {
 	vsnprintf( buffer, sizeof( buffer ), format, args );
 	va_end( args );
 	return buffer;
+}
+void trap_SendClientCommand( const char *command ) {
+	assert( clientCommandCount < 8 );
+	snprintf( clientCommands[clientCommandCount++], sizeof( clientCommands[0] ),
+		"%s", command );
 }
 static void frame( void ) {
 	entityCount = lightCount = hudCount = 0;
@@ -71,11 +81,41 @@ int main( void ) {
 	for ( i = 0; i < 3; i++ ) cg.refdef.viewaxis[i][i] = 1;
 
 	CG_ResetInvokeEffects();
+	CHECK( cg.invokeMoveKeys == 0 );
+	CG_InvokeMovementKey( INVOKE_MOVE_W, qtrue );
+	CG_InvokeMovementKey( INVOKE_MOVE_W, qtrue );
+	CHECK( clientCommandCount == 1 && !strcmp( clientCommands[0], "orb w" ) );
+	CG_InvokeMovementKey( INVOKE_MOVE_A, qtrue );
+	CG_InvokeMovementKey( INVOKE_MOVE_D, qtrue );
+	CHECK( cg.invokeMoveKeys == ( INVOKE_MOVE_W | INVOKE_MOVE_A | INVOKE_MOVE_D )
+		&& clientCommandCount == 3
+		&& !strcmp( clientCommands[1], "orb e" )
+		&& !strcmp( clientCommands[2], "orb q" ) );
+	CG_InvokeMovementKey( INVOKE_MOVE_D, qfalse );
+	CG_InvokeMovementKey( INVOKE_MOVE_D, qtrue );
+	CHECK( clientCommandCount == 4 && !strcmp( clientCommands[3], "orb q" ) );
+	CG_InvokeMovementKey( INVOKE_MOVE_S, qtrue );
+	CHECK( clientCommandCount == 4 && ( cg.invokeMoveKeys & INVOKE_MOVE_S ) );
+	CG_InvokeMovementKey( 0x4000, qtrue );
+	CHECK( clientCommandCount == 4 );
+	CG_ResetInvokeEffects();
+	CG_InvokeMovementKey( INVOKE_MOVE_W, qtrue );
+	CHECK( clientCommandCount == 4 && ( cg.invokeMoveKeys & INVOKE_MOVE_W ) );
+
+	CG_SetInvokeHands( -1, WP_SHOTGUN, WP_ROCKET_LAUNCHER );
+	CG_SetInvokeHands( 0, WP_SHOTGUN, WP_ROCKET_LAUNCHER );
+	CHECK( cg.invokeHandWeapons[0][INVOKE_HAND_LEFT] == WP_SHOTGUN
+		&& cg.invokeHandWeapons[0][INVOKE_HAND_RIGHT] == WP_ROCKET_LAUNCHER );
+	CG_SetInvokeHands( 0, -7, WP_NUM_WEAPONS );
+	CHECK( cg.invokeHandWeapons[0][INVOKE_HAND_LEFT] == WP_NONE
+		&& cg.invokeHandWeapons[0][INVOKE_HAND_RIGHT] == WP_NONE );
+	CG_SetInvokeHands( 0, WP_SHOTGUN, WP_ROCKET_LAUNCHER );
 	frame();
 	CHECK( entityCount == 0 && lightCount == 0 && hudCount == 3 );
 	CG_SetOrbSlots( -1, ORB_NUM_TYPES, 100000 );
 	CHECK( !BG_FindInvocation( cg.orbSlots ) );
 	CG_SetOrbSlots( ORB_QUAS, ORB_WEX, ORB_EXORT );
+	CG_SetInvokeHands( 0, WP_SHOTGUN, WP_ROCKET_LAUNCHER );
 	frame();
 	CHECK( entityCount == 15 && !lightCount );
 	CHECK( entities[0].shaderRGBA[2] > entities[0].shaderRGBA[0] );
@@ -89,15 +129,25 @@ int main( void ) {
 		CHECK( entities[i].reType == RT_SPRITE && entities[i].radius > 0 );
 		CHECK( isfinite( entities[i].origin[0] ) && isfinite( entities[i].origin[1] ) );
 	}
-	CG_InvokeWeapon( WP_NUM_WEAPONS );
+	CG_InvokeWeapon( -1, WP_RAILGUN );
+	CG_InvokeWeapon( INVOKE_HAND_RIGHT, WP_NUM_WEAPONS );
 	CHECK( !cg.invokeEffectEndTime );
-	CG_InvokeWeapon( WP_RAILGUN );
+	CG_InvokeWeapon( INVOKE_HAND_RIGHT, WP_RAILGUN );
 	frame();
 	CHECK( entityCount == 33 && lightCount == 1 && intensity == 160 );
 	peakColor = entities[15].shaderRGBA[0];
 	CG_SetOrbSlots( ORB_QUAS, ORB_QUAS, ORB_EXORT );
 	frame();
-	CHECK( strstr( hudText, "READY Frost Rockets" ) && strstr( hudText, "CAST Deafening Blast" ) );
+	CHECK( strstr( hudText, "READY Rocket Launcher" ) && strstr( hudText, "CAST Railgun" ) );
+	CHECK( strstr( hudText, "LEFT Shotgun" ) && strstr( hudText, "RIGHT Rocket Launcher" )
+		&& strstr( hudText, "R invoke RIGHT" ) );
+	CHECK( strstr( hudText, "W\n" ) && strstr( hudText, "A\n" )
+		&& strstr( hudText, "S\n" ) && strstr( hudText, "D\n" ) );
+	cg.snap->ps.ammo[WP_SHOTGUN] = 7;
+	cg.snap->ps.ammo[WP_ROCKET_LAUNCHER] = 9;
+	frame();
+	CHECK( strstr( hudText, "LEFT Shotgun [7]" )
+		&& strstr( hudText, "RIGHT Rocket Launcher [9]" ) );
 	CHECK( entities[15].shaderRGBA[0] == peakColor );
 	cg.time += 300;
 	frame();
@@ -106,7 +156,7 @@ int main( void ) {
 	frame();
 	CHECK( entityCount == 15 && !lightCount );
 
-	CG_InvokeWeapon( WP_ROCKET_LAUNCHER );
+	CG_InvokeWeapon( INVOKE_HAND_RIGHT, WP_ROCKET_LAUNCHER );
 	cg_invokeEffects.integer = 0;
 	frame();
 	CHECK( !entityCount && !lightCount && hudCount == 3 );

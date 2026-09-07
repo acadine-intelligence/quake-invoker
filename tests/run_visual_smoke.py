@@ -48,25 +48,27 @@ def main():
     }
     for key, value in settings.items():
         args += ["+set", key, value]
-    args += ["+map", "oa_dm3", "+set", "activeAction", "exec visual_smoke.cfg"]
+    args += ["+devmap", "oa_dm3", "+set", "activeAction", "exec visual_smoke.cfg"]
     with (run / "engine.log").open("w") as log:
         result = subprocess.run(args, cwd=RELEASE, stdout=log,
                                 stderr=subprocess.STDOUT, timeout=100)
     if result.returncode:
         raise SystemExit(f"Game exited {result.returncode}. Inspect {run / 'engine.log'}")
     console = (mod / "visual-console.txt").read_text(errors="replace")
-    for expected in ("orbs: Q W E", "invoked Frost Rockets (QQE)",
-                     "invoked Chaos Lightning (WWE)"):
+    for expected in ("orbs: Q W E", "invoked Rocket Launcher (QQE)",
+                     "invoked Lightning Gun (WWE)"):
         assert expected in console, f"Missing {expected!r} in {mod}"
-    for error in ("unknown cmd orb", "unknown cmd invoke", "VM_Abort", "ERROR:",
+    for error in ("unknown cmd orb", "unknown cmd invoke", "unknown cmd invswap",
+                  "VM_Abort", "ERROR:",
                   "May not switch teams"):
         assert error not in console, f"Unexpected {error!r} in {mod}"
-    for combo, shot in (("Frost Rockets (QQE)", "frost_cast"),
-                        ("Chaos Lightning (WWE)", "storm_cast")):
+    for combo, shot in (("Rocket Launcher (QQE)", "frost_cast"),
+                        ("Lightning Gun (WWE)", "storm_cast")):
         assert console.index("invoked " + combo) < console.index(
             f"Wrote screenshots/{shot}.tga"), "Screenshot preceded server confirmation"
-    names = ("empty", "colors", "frost_cast", "frost_ready", "storm_cast",
-             "effects_off", "spectator", "respawn")
+    names = ("empty", "colors", "frost_cast", "swapped_left", "frost_ready", "storm_cast",
+             "effects_off", "spectator", "respawn",
+             "dual_before", "left_fired", "right_firing", "both_after")
     screenshots = []
     for name in names:
         image = mod / f"screenshots/{name}.tga"

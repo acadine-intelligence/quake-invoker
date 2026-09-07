@@ -16,6 +16,10 @@ static void reset( int s[INVOKE_SLOTS] ) { s[0] = s[1] = s[2] = ORB_NONE; }
 int main( void ) {
 	int s[INVOKE_SLOTS];
 	const invocation_t *inv;
+	invokeHands_t hands;
+	int ammo[WP_NUM_WEAPONS] = {0};
+	int weaponBits = 0;
+	int firedWeapon = WP_NONE;
 
 	reset( s );
 	CHECK( BG_FindInvocation( s ) == NULL, "empty slots invoke nothing" );
@@ -58,6 +62,65 @@ int main( void ) {
 
 	CHECK( BG_OrbFromString( "q" ) == ORB_QUAS && BG_OrbFromString( "E" ) == ORB_EXORT && BG_OrbFromString( "x" ) == ORB_NONE
 		&& BG_OrbFromString( "qq" ) == ORB_NONE, "orb parsing" );
+
+	BG_InvokeHandsReset( &hands );
+	CHECK( BG_InvokeHandWeapon( &hands, INVOKE_HAND_LEFT ) == WP_NONE
+		&& BG_InvokeHandWeapon( &hands, INVOKE_HAND_RIGHT ) == WP_NONE,
+		"both hands reset empty" );
+	CHECK( !BG_InvokeEquipHand( &hands, -1, WP_ROCKET_LAUNCHER, 15, ammo, &weaponBits )
+		&& !BG_InvokeEquipHand( &hands, INVOKE_HAND_RIGHT, WP_NUM_WEAPONS, 15, ammo, &weaponBits ),
+		"invalid hand and weapon IDs are rejected" );
+	CHECK( BG_InvokeEquipHand( &hands, INVOKE_HAND_RIGHT, WP_ROCKET_LAUNCHER, 15, ammo, &weaponBits )
+		&& hands.weapon[INVOKE_HAND_RIGHT] == WP_ROCKET_LAUNCHER
+		&& ammo[WP_ROCKET_LAUNCHER] == 15
+		&& ( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) ),
+		"invoke equips right hand and grants initial ammo" );
+	ammo[WP_ROCKET_LAUNCHER] = 9;
+	CHECK( BG_InvokeEquipHand( &hands, INVOKE_HAND_RIGHT, WP_ROCKET_LAUNCHER, 15, ammo, &weaponBits )
+		&& ammo[WP_ROCKET_LAUNCHER] == 9,
+		"reinvoking never refills ammo" );
+	CHECK( BG_InvokeEquipHand( &hands, INVOKE_HAND_LEFT, WP_SHOTGUN, 15, ammo, &weaponBits ),
+		"left hand accepts a different stock weapon" );
+	BG_InvokeSwapHands( &hands );
+	CHECK( hands.weapon[INVOKE_HAND_LEFT] == WP_ROCKET_LAUNCHER
+		&& hands.weapon[INVOKE_HAND_RIGHT] == WP_SHOTGUN,
+		"swap exchanges both hand slots" );
+	CHECK( BG_InvokePackedHands( &hands ) == ( WP_ROCKET_LAUNCHER | ( WP_SHOTGUN << 4 ) ),
+		"hand assignments pack into predicted player state" );
+	hands.weapon[INVOKE_HAND_RIGHT] = WP_NONE;
+	BG_InvokeSwapHands( &hands );
+	CHECK( hands.weapon[INVOKE_HAND_LEFT] == WP_NONE
+		&& hands.weapon[INVOKE_HAND_RIGHT] == WP_ROCKET_LAUNCHER,
+		"swap preserves an empty slot" );
+
+	CHECK( BG_InvokeTryFire( &hands, INVOKE_HAND_RIGHT, 1000,
+		BG_InvokeWeaponCooldown( WP_ROCKET_LAUNCHER ), ammo, &firedWeapon ) == INVOKE_FIRE_OK
+		&& firedWeapon == WP_ROCKET_LAUNCHER && ammo[WP_ROCKET_LAUNCHER] == 8,
+		"successful fire consumes one ammo" );
+	CHECK( BG_InvokeTryFire( &hands, INVOKE_HAND_RIGHT, 1799,
+		BG_InvokeWeaponCooldown( WP_ROCKET_LAUNCHER ), ammo, &firedWeapon ) == INVOKE_FIRE_COOLDOWN
+		&& ammo[WP_ROCKET_LAUNCHER] == 8,
+		"weapon cooldown blocks early refire without consuming ammo" );
+	CHECK( BG_InvokeTryFire( &hands, INVOKE_HAND_RIGHT, 1800,
+		BG_InvokeWeaponCooldown( WP_ROCKET_LAUNCHER ), ammo, &firedWeapon ) == INVOKE_FIRE_OK
+		&& ammo[WP_ROCKET_LAUNCHER] == 7,
+		"weapon fires exactly when cooldown expires" );
+	hands.weapon[INVOKE_HAND_LEFT] = WP_ROCKET_LAUNCHER;
+	CHECK( BG_InvokeTryFire( &hands, INVOKE_HAND_LEFT, 1800,
+		BG_InvokeWeaponCooldown( WP_ROCKET_LAUNCHER ), ammo, &firedWeapon ) == INVOKE_FIRE_COOLDOWN,
+		"same weapon in both hands shares its cooldown" );
+	BG_InvokeSwapHands( &hands );
+	CHECK( BG_InvokeTryFire( &hands, INVOKE_HAND_LEFT, 1801,
+		BG_InvokeWeaponCooldown( WP_ROCKET_LAUNCHER ), ammo, &firedWeapon ) == INVOKE_FIRE_COOLDOWN,
+		"swapping does not reset cooldown" );
+	hands.nextFireTime[WP_ROCKET_LAUNCHER] = 0;
+	ammo[WP_ROCKET_LAUNCHER] = 0;
+	CHECK( BG_InvokeTryFire( &hands, INVOKE_HAND_LEFT, 2000,
+		BG_InvokeWeaponCooldown( WP_ROCKET_LAUNCHER ), ammo, &firedWeapon ) == INVOKE_FIRE_NO_AMMO,
+		"empty weapon cannot fire" );
+	CHECK( BG_InvokeTryFire( &hands, -1, 2000, 100, ammo, &firedWeapon ) == INVOKE_FIRE_INVALID
+		&& BG_InvokeTryFire( &hands, INVOKE_HAND_RIGHT, 2000, 0, ammo, &firedWeapon ) == INVOKE_FIRE_INVALID,
+		"invalid firing input is rejected" );
 
 	printf( "%s (%d failures)\n", fails ? "TESTS FAILED" : "ALL TESTS PASSED", fails );
 	return fails ? 1 : 0;
