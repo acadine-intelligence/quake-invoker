@@ -1,6 +1,6 @@
 # Ordered invocation and classic spells
 
-Status: ordered recipes, the shared mana pool, and the first two classic spells implemented and verified in-engine (2026-09-10). Invoking resolves the exact orb sequence against the 27-entry table; weapon recipes equip a hand; Ghost Walk (Q,Q,W) and Sunstrike (E,E,E) equip a hand and cast on that hand's fire button, spending mana and starting their cooldown; every other spell, the portal, and reserved entries report "not castable yet" without granting anything. The remaining eight spell behaviors are not implemented yet. This target supersedes the order-independent recipe target in `01-invoker-mechanics.md`; that document and `05-dual-hands.md` describe the earlier slices.
+Status: ordered recipes, the shared mana pool, and six classic spells implemented and verified in-engine (2026-09-11). Invoking resolves the exact orb sequence against the 27-entry table; weapon recipes equip a hand; Ghost Walk (Q,Q,W), Sunstrike (E,E,E), EMP (W,W,W), Chaos Meteor (W,E,E), Tornado (Q,W,W), and Deafening Blast (Q,W,E) equip a hand and cast on that hand's fire button, spending mana and starting their cooldown; the four remaining spells (Cold Snap, Ice Wall, Alacrity, Forge Spirit), the portal, and reserved entries report "not castable yet" without granting anything. The remaining four spell behaviors are not implemented yet. This target supersedes the order-independent recipe target in `01-invoker-mechanics.md`; that document and `05-dual-hands.md` describe the earlier slices.
 
 ## Requested behavior
 
@@ -104,16 +104,16 @@ These descriptions specify distinct gameplay. They do not claim to reproduce a p
 | Ice Wall | Place a short-lived ice field across the ground ahead. Enemies inside take periodic damage and move more slowly. | Crossing applies the slow and damage. Leaving or expiry removes the slow. Overlapping fields cannot multiply the slow indefinitely. |
 | Forge Spirit | Summon a damageable companion that follows the caster and attacks enemies with armor-reducing fire projectiles. | It acquires a valid enemy, deals damage, reduces armor, and disappears on death or expiry. It respects collision and an owner-specific population cap. |
 | Ghost Walk | Become invisible and apply a short-range slow to nearby enemies. Casting an offensive ability or firing a weapon ends invisibility. | Remote observers and enemy targeting reflect invisibility. Reveal and expiry remove the associated state. |
-| Tornado | Launch a travelling vortex that lifts enemies caught along its path. | Targets gain vertical displacement, land safely, and regain normal movement. Solid walls stop the vortex. |
+| Tornado | Launch a travelling vortex that lifts enemies caught along its path. | Targets gain vertical displacement, land safely, and regain normal movement. Solid walls stop the vortex. The built Tornado follows this spec: level flight for up to 1.5 s, a 170-unit lift radius, and a quiet stop at solid walls. |
 | EMP | Mark an area, then discharge after a delay. Affected enemies lose armor and mana. | Equipped enemies actually reach zero armor and mana. Resources cannot become negative. It has no direct health damage in this proposed adaptation. The built EMP differs: 70 damage plus a shove, no resource drain (see 05-dual-hands.md). |
 | Alacrity | Apply a temporary weapon attack-speed and damage buff to the caster. | Weapon shot intervals and damage change while active, then return to normal. Repeated applications do not multiply the buff. |
 | Chaos Meteor | Send a burning meteor along the ground, with impact damage and a burning trail. | It moves across valid ground, hits targets, and applies timed burn damage. Walls and expiry end it. |
 | Sunstrike | Mark the aimed ground position and produce a delayed, narrow strike that bypasses armor. | The strike occurs at the recorded position after its delay. Damage follows the documented armor rule and radius. |
-| Deafening Blast | Fire a broad pressure wave that damages and pushes enemies back, temporarily preventing weapon fire. | Impact changes velocity and damage. Weapon fire resumes when the disarm expires. Spell casting follows an explicit disarm rule. |
+| Deafening Blast | Fire a broad pressure wave that damages and pushes enemies back, temporarily preventing weapon fire. | Impact changes velocity and damage. Weapon fire resumes when the disarm expires. Spell casting follows an explicit disarm rule. The built Deafening Blast follows this spec: 50 damage, a 260-unit/s shove, and a 3 s weapon disarm. Spell casting is exempt from the disarm. |
 
 Mana must be introduced as a real server-owned resource. EMP targets in the tests must start with nonzero armor and mana. A renamed grenade or a resource value drawn only on the HUD does not implement EMP.
 
-Implemented numbers (2026-09-10): one 100-point pool per client, regenerated at 4 points per second while alive on the server. Ghost Walk costs 25 with an 18 s cooldown; Sunstrike costs 45 with a 24 s cooldown. Both cooldowns run on server time (`level.time`), and the HUD reads the pool through `STAT_INVOKE_MANA`.
+Implemented numbers (2026-09-10, extended 2026-09-11): one 100-point pool per client, regenerated at 4 points per second while alive on the server. Ghost Walk costs 25 with an 18 s cooldown; Sunstrike 45/24 s; EMP 45/30 s; Chaos Meteor 55/35 s; Tornado 40/25 s; Deafening Blast 45/30 s. All cooldowns run on server time (`level.time`), and the HUD reads the pool through `STAT_INVOKE_MANA`. Tornado lifts everyone inside its 170-unit radius to at least 210 units/s of upward speed and fades at solid walls or after 1.5 s. Deafening Blast bursts on contact or after 900 ms, shoving (260 units/s plus lift) and damaging (50) inside a 350-unit radius, and disarming weapon fire for 3 s. The disarm holds both hand weapons and the classic selected weapon (`ps.weaponTime`), while spell casting stays available; respawn clears it.
 
 All temporary effects need bounded entity counts and explicit lifetimes. Friendly-fire policy must follow the selected game mode. The first test opponents can be local clients or bots; a full roguelite enemy roster is outside this spell implementation.
 
@@ -143,7 +143,7 @@ Keep the existing visual PR unchanged. This design lives on `feat/spell-system`,
 
 ## Completion contract
 
-Implementation is complete only when the applicable items below pass. Progress (2026-09-10): ordered recipes and the two-slot weapon path pass on the host and in-engine; the mana system, Ghost Walk, and Sunstrike pass their first in-engine exercise; the remaining spell rows and the portal are still open.
+Implementation is complete only when the applicable items below pass. Progress (2026-09-11): ordered recipes and the two-slot weapon path pass on the host and in-engine; the mana system, Ghost Walk, Sunstrike, EMP, Chaos Meteor, Tornado, and Deafening Blast pass their in-engine exercise; the remaining four spell rows and the portal are still open.
 
 - [ ] Slot replacement and portal-rendering decisions are recorded.
 - [ ] Exhaustive recipe tests cover all 27 ordered sequences, including order-distinct results, invalid input, and reserved entries.

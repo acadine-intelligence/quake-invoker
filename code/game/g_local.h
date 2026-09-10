@@ -435,6 +435,9 @@ void Cmd_Orb_f( gentity_t *ent );
 void Cmd_Invoke_f( gentity_t *ent );
 void Cmd_InvokeSwap_f( gentity_t *ent );
 void G_InvokeClientThink( gentity_t *ent, int buttons, int fireTime, qboolean gauntletHit );
+void G_InvokeTornadoThink( gentity_t *self );
+void G_InvokeBlastThink( gentity_t *self );
+void G_InvokeBlastImpact( gentity_t *ent, trace_t *trace );
 void BroadcastTeamChange( gclient_t *client, int oldTeam );
 void SetTeam( gentity_t *ent, const char *s );
 void Cmd_FollowCycle_f( gentity_t *ent, int dir );
@@ -526,6 +529,8 @@ gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t aimdir);
 gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t aimdir);
 gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir);
 gentity_t *fire_invoke_meteor (gentity_t *self, vec3_t start, vec3_t dir);
+gentity_t *fire_invoke_tornado (gentity_t *self, vec3_t start, vec3_t dir);
+gentity_t *fire_invoke_blast (gentity_t *self, vec3_t start, vec3_t dir);
 gentity_t *fire_bfg (gentity_t *self, vec3_t start, vec3_t dir);
 gentity_t *fire_grapple (gentity_t *self, vec3_t start, vec3_t dir);
 #ifdef MISSIONPACK

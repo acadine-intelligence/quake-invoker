@@ -102,7 +102,7 @@ def main():
     args += ["+devmap", "oa_dm3", "+set", "activeAction", "exec visual_smoke.cfg"]
     with (run / "engine.log").open("w") as log:
         result = subprocess.run(args, cwd=RELEASE, stdout=log,
-                                stderr=subprocess.STDOUT, timeout=100)
+                                stderr=subprocess.STDOUT, timeout=160)
     if result.returncode:
         raise SystemExit(f"Game exited {result.returncode}. Inspect {run / 'engine.log'}")
     console = (mod / "visual-console.txt").read_text(errors="replace")
@@ -112,7 +112,11 @@ def main():
                      "invoked Sunstrike (EEE)", "cast Sunstrike (-45 mana)",
                      "sunstrike impact", "Invoker manual opened",
                      "invoked EMP (WWW)", "cast EMP (-45 mana)", "emp impact",
-                     "invoked Chaos Meteor (WEE)", "cast Chaos Meteor (-55 mana)"):
+                     "invoked Chaos Meteor (WEE)", "cast Chaos Meteor (-55 mana)",
+                     "invoked Tornado (QWW)", "cast Tornado (-40 mana)",
+                     "tornado faded",
+                     "invoked Deafening Blast (QWE)", "cast Deafening Blast (-45 mana)",
+                     "deafening blast burst"):
         assert expected in console, f"Missing {expected!r} in {mod}"
     for error in ("unknown cmd orb", "unknown cmd invoke", "unknown cmd invswap",
                   "unknown cmd invcast", "unknown cmd invemp", "unhandled invoke spell",
@@ -124,13 +128,17 @@ def main():
                         ("Ghost Walk (QQW)", "ghost_equipped"),
                         ("Sunstrike (EEE)", "sun_g1"),
                         ("EMP (WWW)", "emp_charge"),
-                        ("Chaos Meteor (WEE)", "meteor_fly")):
+                        ("Chaos Meteor (WEE)", "meteor_fly"),
+                        ("Tornado (QWW)", "tornado_fly"),
+                        ("Deafening Blast (QWE)", "deafen_fly")):
         assert console.index("invoked " + combo) < console.index(
             f"Wrote screenshots/{shot}.tga"), "Screenshot preceded server confirmation"
     assert console.index("sunstrike impact") < console.index(
         "Wrote screenshots/sunstrike_after.tga"), "Strike impact missing before final shot"
     assert console.index("Invoker manual opened") < console.index(
         "Wrote screenshots/invoker_manual.tga"), "Manual opened after its screenshot"
+    assert console.index("deafening blast burst") < console.index(
+        "Wrote screenshots/deafen_after.tga"), "Burst missing before the last blast shot"
     assert_menu_fits(mod / "screenshots/invoker_manual.tga")
     names = ("empty", "colors", "rocket_cast", "swapped_left", "rocket_ready", "lightning_cast",
              "dual_before", "left_fired", "right_firing", "both_after", "spell_attempt",
@@ -140,6 +148,8 @@ def main():
              "sunstrike_after",
              "emp_charge", "emp_charge2", "emp_burst", "emp_after",
              "meteor_fly", "meteor_boom", "meteor_after",
+             "tornado_fly", "tornado_lift", "tornado_after",
+             "deafen_fly", "deafen_burst", "deafen_after",
              "effects_off", "spectator", "respawn", "ingame_menu", "invoker_manual",
              "back_to_game")
     screenshots = []

@@ -45,6 +45,8 @@ void CG_ResetInvokeEffects( void ) {
 	memset( cg.invokeCastTime, 0, sizeof( cg.invokeCastTime ) );
 	cg.invokeEmpStartTime = 0;
 	cg.invokeEmpEndTime = 0;
+	cg.invokeDeafenStartTime = 0;
+	cg.invokeDeafenEndTime = 0;
 	cg.invokeStrikeEndTime = 0;
 	// Physical held keys survive gameplay/visual resets until key-up.
 	cg.orbChangeTime = 0;
@@ -271,6 +273,62 @@ static void CG_InvokeWorldSprite( const vec3_t origin, float radius,
 	trap_R_AddRefEntityToScene( &ent );
 }
 
+// The deafening blast: remember where the wave burst. CG_AddInvokeEffects
+// draws the expanding rings for the short window; nothing persists after.
+void CG_InvokeDeafenBurst( vec3_t origin ) {
+	VectorCopy( origin, cg.invokeDeafenOrigin );
+	cg.invokeDeafenStartTime = cg.time;
+	cg.invokeDeafenEndTime = cg.time + DEAFEN_BURST_MSEC;
+}
+
+// Tornado: a twisting column of sprites rigged to the missile entity, so
+// the vortex stays glued to the real (server-side) projectile. The missile
+// carries the INVOKE_FX_TORNADO marker instead of a weapon model.
+void CG_InvokeTornado( centity_t *cent ) {
+	const vec4_t col = { 0.45f, 0.75f, 1.0f, 1.0f };
+	int i;
+	float a, f;
+	vec3_t p;
+
+	for ( i = 0; i < TORNADO_SPRITES; i++ ) {
+		f = i / (float)( TORNADO_SPRITES - 1 );
+		a = cg.time * 0.010f + f * 4.2f;
+		p[0] = cent->lerpOrigin[0] + ( 10.0f + 44.0f * f ) * cos( a );
+		p[1] = cent->lerpOrigin[1] + ( 10.0f + 44.0f * f ) * sin( a );
+		p[2] = cent->lerpOrigin[2] - 26.0f + 128.0f * f;
+		CG_InvokeWorldSprite( p, 3.0f + 8.0f * ( 1.0f - f ), col,
+			0.30f + 0.55f * ( 1.0f - f ), a * 180.0f / M_PI );
+	}
+	trap_R_AddLightToScene( cent->lerpOrigin, 120, col[0], col[1], col[2] );
+}
+
+// Deafening Blast in flight: a bright pressure core with a short trail,
+// drawn from the INVOKE_FX_DEAFENING marker.
+void CG_InvokeBlastMissile( centity_t *cent ) {
+	const vec4_t col = { 0.85f, 0.80f, 1.0f, 1.0f };
+	vec3_t dir, p;
+	float len;
+	int i;
+
+	// normalize the flight direction without q_math: the host test builds
+	// cg_invoke.c on its own and has no engine math library
+	VectorCopy( cent->currentState.pos.trDelta, dir );
+	len = sqrt( dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2] );
+	if ( len > 0.001f ) {
+		VectorScale( dir, 1.0f / len, dir );
+	} else {
+		dir[0] = 0;
+		dir[1] = 0;
+		dir[2] = 1;
+	}
+	for ( i = 3; i >= 0; i-- ) {
+		VectorMA( cent->lerpOrigin, -16.0f * i, dir, p );
+		CG_InvokeWorldSprite( p, i ? 6.0f - 1.2f * i : 10.0f, col,
+			i ? 0.28f - 0.06f * i : 0.85f, 0 );
+	}
+	trap_R_AddLightToScene( cent->lerpOrigin, 150, col[0], col[1], col[2] );
+}
+
 // Camera-relative motes orbit below the crosshair. No game entities or
 // particles accumulate: each frame submits a fixed, bounded render list.
 void CG_AddInvokeEffects( void ) {
@@ -341,6 +399,42 @@ void CG_AddInvokeEffects( void ) {
 		}
 		trap_R_AddLightToScene( cg.invokeEmpOrigin, 100 + 140 * charge,
 			0.35f, 0.6f, 1.0f );
+	}
+
+	// deafening blast: two flat rings leave the burst point as one wave
+	if ( cg.invokeDeafenEndTime > cg.time ) {
+		const vec4_t deafenCol = { 0.85f, 0.82f, 1.0f, 1.0f };
+		float wave = 0.0f;
+
+		span = cg.invokeDeafenEndTime - cg.invokeDeafenStartTime;
+		if ( span > 0 ) {
+			wave = ( cg.time - cg.invokeDeafenStartTime ) / span;
+			if ( wave < 0 ) {
+				wave = 0;
+			}
+			if ( wave > 1 ) {
+				wave = 1;
+			}
+		}
+		for ( j = 0; j < 2; j++ ) {
+			float r = 60 + 280 * wave - j * 70;
+
+			if ( r < 8 ) {
+				continue;
+			}
+			for ( i = 0; i < EMP_RING_STEPS; i++ ) {
+				float	a = i * ( 2.0f * M_PI / EMP_RING_STEPS );
+				vec3_t	p;
+
+				p[0] = cg.invokeDeafenOrigin[0] + r * cos( a );
+				p[1] = cg.invokeDeafenOrigin[1] + r * sin( a );
+				p[2] = cg.invokeDeafenOrigin[2] + 6;
+				CG_InvokeWorldSprite( p, j ? 3.0f : 5.0f, deafenCol,
+					( j ? 0.4f : 0.85f ) * ( 1.0f - wave ), a * 180 / M_PI );
+			}
+		}
+		trap_R_AddLightToScene( cg.invokeDeafenOrigin, 260 - 160 * wave,
+			0.7f, 0.72f, 1.0f );
 	}
 
 	flash = CG_InvokeFlash();

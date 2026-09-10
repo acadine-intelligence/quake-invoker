@@ -40,6 +40,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define INVOKE_MANA_MAX			100
 #define INVOKE_MANA_REGEN_PER_SEC	4
 
+// Effect marker carried in entityState_t.generic1 by invoke spell missiles:
+// the cgame draws these from the marker instead of a weapon model or trail.
+#define INVOKE_FX_NONE			0
+#define INVOKE_FX_TORNADO		1
+#define INVOKE_FX_DEAFENING		2
+
 #define INVOKE_MOVE_W		0x01
 #define INVOKE_MOVE_A		0x02
 #define INVOKE_MOVE_S		0x04

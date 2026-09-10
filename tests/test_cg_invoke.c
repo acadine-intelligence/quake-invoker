@@ -306,6 +306,42 @@ int main( void ) {
 		frame();
 		CHECK( !entityCount && !lightCount );
 	}
+
+	// the deafening blast rings draw from cg state until the wave fades
+	{
+		vec3_t here = { 96, 0, 0 };
+
+		CG_ResetInvokeEffects();
+		CG_InvokeDeafenBurst( here );
+		frame();
+		CHECK( entityCount == EMP_RING_STEPS && lightCount == 1 );
+		CHECK( entities[0].reType == RT_SPRITE && entities[0].origin[2] > here[2] );
+		cg.time += DEAFEN_BURST_MSEC / 2;
+		frame();
+		CHECK( entityCount == 2 * EMP_RING_STEPS && lightCount == 1 );
+		cg.time += DEAFEN_BURST_MSEC / 2 + 1;
+		frame();
+		CHECK( !entityCount && !lightCount );
+	}
+
+	// the tornado and blast missiles draw from their entity marker
+	{
+		centity_t cent;
+
+		memset( &cent, 0, sizeof( cent ) );
+		cent.lerpOrigin[0] = 80;
+		cent.lerpOrigin[1] = 16;
+		cent.lerpOrigin[2] = 40;
+		CG_ResetInvokeEffects();
+		CG_InvokeTornado( &cent );
+		CHECK( entityCount == TORNADO_SPRITES && lightCount == 1 );
+		CHECK( entities[0].reType == RT_SPRITE && entities[0].radius > 0 );
+		CHECK( entities[0].origin[0] != entities[1].origin[0] );
+		entityCount = lightCount = 0;
+		cent.currentState.pos.trDelta[0] = 620;	// the marker's flight direction
+		CG_InvokeBlastMissile( &cent );
+		CHECK( entityCount == 4 && lightCount == 1 );
+	}
 	cg.snap = NULL;
 	frame();
 	CHECK( !entityCount && !hudCount );

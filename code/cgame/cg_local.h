@@ -527,6 +527,9 @@ typedef struct {
 	int			invokeEmpStartTime;	// local: EMP charge window from "invemp"
 	int			invokeEmpEndTime;
 	vec3_t		invokeEmpOrigin;
+	int			invokeDeafenStartTime;	// local: Deafening Blast burst window
+	int			invokeDeafenEndTime;
+	vec3_t		invokeDeafenOrigin;
 
 	// auto rotating items
 	vec3_t		autoAngles;
@@ -1310,7 +1313,12 @@ void CG_InvokeMovementKey( int moveKey, qboolean down );
 void CG_InvokeHandFired( centity_t *cent, int hand, int weapon );
 void CG_InvokeSpellCast( int hand, int spell );
 #define EMP_RING_STEPS 24		// sprites that draw the EMP charge ring
+#define DEAFEN_BURST_MSEC 700	// lifetime of the deafening blast rings
+#define TORNADO_SPRITES 16		// sprites in the tornado column
 void CG_InvokeEmpCharge( vec3_t origin, int duration );
+void CG_InvokeDeafenBurst( vec3_t origin );
+void CG_InvokeTornado( centity_t *cent );
+void CG_InvokeBlastMissile( centity_t *cent );
 float CG_InvokeReadyFraction( int now, int castTime, int cooldown );
 void CG_AddInvokeEffects( void );
 void CG_DrawOrbs( void );

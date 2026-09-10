@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 //
 #include "g_local.h"
+#include "bg_invoke.h"
 
 #define	MISSILE_PRESTEP_TIME	50
 
@@ -281,6 +282,21 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 		( ent->s.eFlags & ( EF_BOUNCE | EF_BOUNCE_HALF ) ) ) {
 		G_BounceMissile( ent, trace );
 		G_AddEvent( ent, EV_GRENADE_BOUNCE, 0 );
+		return;
+	}
+
+	// Quake Invoker missiles carry their own impact behaviours
+	if ( !strcmp( ent->classname, "invoke_tornado" ) ) {
+		// the vortex dies quietly at the wall: no event, no mark
+		if ( ent->parent && ent->parent->client ) {
+			trap_SendServerCommand( ent->parent - g_entities, "print \"tornado faded\\n\"" );
+		}
+		ent->s.eType = ET_GENERAL;
+		ent->freeAfterEvent = qtrue;
+		return;
+	}
+	if ( !strcmp( ent->classname, "invoke_blast" ) ) {
+		G_InvokeBlastImpact( ent, trace );
 		return;
 	}
 
@@ -709,6 +725,85 @@ gentity_t *fire_invoke_meteor (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->s.pos.trTime = level.time - MISSILE_PRESTEP_TIME;		// move a bit on the very first frame
 	VectorCopy( start, bolt->s.pos.trBase );
 	VectorScale( dir, 500, bolt->s.pos.trDelta );
+	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
+	VectorCopy (start, bolt->r.currentOrigin);
+
+	return bolt;
+}
+
+/*
+=================
+fire_invoke_tornado
+
+Tornado: a travelling vortex. It passes through players and is stopped
+by solid walls; its think lifts everyone along the path. The cgame draws
+the vortex from the s.generic1 marker instead of a weapon model.
+=================
+*/
+gentity_t *fire_invoke_tornado (gentity_t *self, vec3_t start, vec3_t dir) {
+	gentity_t	*bolt;
+
+	VectorNormalize (dir);
+
+	bolt = G_Spawn();
+	bolt->classname = "invoke_tornado";
+	bolt->nextthink = level.time + 1;
+	bolt->think = G_InvokeTornadoThink;
+	bolt->s.eType = ET_MISSILE;
+	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
+	bolt->s.weapon = WP_NONE;
+	bolt->s.generic1 = INVOKE_FX_TORNADO;
+	bolt->r.ownerNum = self->s.number;
+	bolt->parent = self;
+	bolt->damage = 0;
+	bolt->clipmask = MASK_SOLID;		// walls stop it, players do not
+	bolt->target_ent = NULL;
+	bolt->s.time = level.time;			// birth time: the vortex has a lifetime
+
+	bolt->s.pos.trType = TR_LINEAR;
+	bolt->s.pos.trTime = level.time - MISSILE_PRESTEP_TIME;
+	VectorCopy( start, bolt->s.pos.trBase );
+	VectorScale( dir, 560, bolt->s.pos.trDelta );
+	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
+	VectorCopy (start, bolt->r.currentOrigin);
+
+	return bolt;
+}
+
+/*
+=================
+fire_invoke_blast
+
+Deafening Blast: a fast pressure wave. G_InvokeBlastImpact replaces the
+standard missile explosion with the burst; the cgame draws it from the
+s.generic1 marker. The rocket weapon id only feeds the burst's sound and
+flash through the standard impact event.
+=================
+*/
+gentity_t *fire_invoke_blast (gentity_t *self, vec3_t start, vec3_t dir) {
+	gentity_t	*bolt;
+
+	VectorNormalize (dir);
+
+	bolt = G_Spawn();
+	bolt->classname = "invoke_blast";
+	bolt->nextthink = level.time + 1;
+	bolt->think = G_InvokeBlastThink;
+	bolt->s.eType = ET_MISSILE;
+	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
+	bolt->s.weapon = WP_ROCKET_LAUNCHER;
+	bolt->s.generic1 = INVOKE_FX_DEAFENING;
+	bolt->r.ownerNum = self->s.number;
+	bolt->parent = self;
+	bolt->damage = 0;					// the burst does the damage
+	bolt->clipmask = MASK_SHOT;
+	bolt->target_ent = NULL;
+	bolt->s.time = level.time;			// birth time: the wave has a range
+
+	bolt->s.pos.trType = TR_LINEAR;
+	bolt->s.pos.trTime = level.time - MISSILE_PRESTEP_TIME;
+	VectorCopy( start, bolt->s.pos.trBase );
+	VectorScale( dir, 620, bolt->s.pos.trDelta );
 	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
 	VectorCopy (start, bolt->r.currentOrigin);
 

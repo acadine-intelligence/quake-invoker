@@ -32,8 +32,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // them; invoked weapons arrive through the STAT_WEAPONS / ammo snapshot
 // path, invoked spells through STAT_INVOKE_SPELLS, and mana through
 // STAT_INVOKE_MANA. Castable spells: Ghost Walk (invisibility for 5 s),
-// Sunstrike (aimed strike after 1.75 s), EMP (charged burst after 2.5 s)
-// and Chaos Meteor.
+// Sunstrike (aimed strike after 1.75 s), EMP (charged burst after 2.5 s),
+// Chaos Meteor, Tornado (travelling vortex) and Deafening Blast (a shove
+// that disarms weapon fire).
 
 #include "g_local.h"
 #include "bg_invoke.h"
@@ -48,6 +49,18 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define EMP_DAMAGE		70
 // A held fire button with an empty mana pool must not spam the notice.
 #define INVOKE_NO_MANA_NOTICE_MS	500
+// Tornado: a vortex that lives TORNADO_LIFE_MS and lifts everyone inside
+// TORNADO_RADIUS along its path.
+#define TORNADO_LIFE_MS		1500
+#define TORNADO_RADIUS		170
+#define TORNADO_LIFT		210
+// Deafening Blast: a pressure wave that bursts after DEAFEN_LIFE_MS of
+// flight at most and shoves plus disarms everyone in DEAFEN_RADIUS.
+#define DEAFEN_LIFE_MS		900
+#define DEAFEN_RADIUS		350
+#define DEAFEN_DAMAGE		50
+#define DEAFEN_PUSH			260
+#define DEAFEN_DISARM_MS	3000
 
 typedef struct {
 	int		orbSlots[INVOKE_SLOTS];	// orbType_t values, oldest first
@@ -59,6 +72,7 @@ typedef struct {
 	int		empTime;				// level.time the EMP burst lands (0 = none)
 	vec3_t	empOrigin;
 	int		lastNoManaCp;			// level.time of the last mana notice
+	int		disarmedUntil;			// weapon fire stays silent until this time
 } invokeState_t;
 
 static invokeState_t	g_invoke[MAX_CLIENTS];
@@ -175,6 +189,7 @@ void G_InvokeReset( gentity_t *ent ) {
 	st->empTime = 0;
 	VectorClear( st->empOrigin );
 	st->lastNoManaCp = 0;
+	st->disarmedUntil = 0;
 	ent->client->ps.stats[STAT_INVOKE_MANA] = INVOKE_MANA_MAX;
 	G_InvokeSendOrbs( ent );
 	// broadcast, not a single send: a spawning or joining client also
@@ -226,6 +241,8 @@ static qboolean G_InvokeSpellCastable( int spell ) {
 	case SPELL_SUNSTRIKE:
 	case SPELL_EMP:
 	case SPELL_CHAOS_METEOR:
+	case SPELL_TORNADO:
+	case SPELL_DEAFENING_BLAST:
 		return qtrue;
 	default:
 		return qfalse;
@@ -379,6 +396,27 @@ static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int hand,
 		AngleVectors( ps->viewangles, forward, NULL, NULL );
 		fire_invoke_meteor( ent, start, forward );
 		break;
+	case SPELL_TORNADO:
+	{
+		vec3_t flatAngles;
+
+		// the vortex travels level along the view yaw: looking down must
+		// not drive it into the floor
+		flatAngles[0] = 0;
+		flatAngles[1] = ps->viewangles[1];
+		flatAngles[2] = 0;
+		AngleVectors( flatAngles, forward, NULL, NULL );
+		VectorCopy( ps->origin, start );
+		start[2] += ps->viewheight;
+		fire_invoke_tornado( ent, start, forward );
+		break;
+	}
+	case SPELL_DEAFENING_BLAST:
+		VectorCopy( ps->origin, start );
+		start[2] += ps->viewheight;
+		AngleVectors( ps->viewangles, forward, NULL, NULL );
+		fire_invoke_blast( ent, start, forward );
+		break;
 	default:
 		// reachable only if a spell joins G_InvokeSpellCastable without an
 		// implementation here: stay loud instead of quietly eating mana
@@ -475,6 +513,128 @@ static void G_InvokeEmp( gentity_t *ent, vec3_t origin ) {
 
 /*
 ==============
+G_InvokeDeafenBurst
+
+The pressure wave: a shove away from the burst point, damage, and a short
+weapon disarm on everyone caught, except the caster. Spell casting is not
+disarmed: only weapon fire is locked out.
+==============
+*/
+static void G_InvokeDeafenBurst( gentity_t *ent, vec3_t origin ) {
+	gentity_t	*targ;
+	vec3_t		dir, diff;
+	int			i;
+
+	if ( ent && ent->client ) {
+		trap_SendServerCommand( ent - g_entities, "print \"deafening blast burst\\n\"" );
+	}
+	for ( i = 0; i < level.maxclients; i++ ) {
+		targ = &g_entities[i];
+		if ( !targ->inuse || !targ->client || targ == ent || targ->health <= 0
+			|| targ->client->pers.connected != CON_CONNECTED
+			|| targ->client->ps.pm_type == PM_SPECTATOR ) {
+			continue;
+		}
+		VectorSubtract( targ->client->ps.origin, origin, diff );
+		if ( VectorLengthSquared( diff ) > (float)DEAFEN_RADIUS * DEAFEN_RADIUS ) {
+			continue;
+		}
+		VectorCopy( diff, dir );
+		VectorNormalize( dir );
+		VectorMA( targ->client->ps.velocity, DEAFEN_PUSH, dir, targ->client->ps.velocity );
+		targ->client->ps.velocity[2] += 120;
+		G_InvokeState( targ )->disarmedUntil = level.time + DEAFEN_DISARM_MS;
+		G_Damage( targ, ent, ent, dir, targ->client->ps.origin, DEAFEN_DAMAGE, 0, MOD_DEAFENING_BLAST );
+	}
+}
+
+/*
+==============
+G_InvokeBlastImpact
+
+A Deafening Blast missile met world or player geometry. The burst
+replaces the standard explosion; the missile becomes the event carrier
+so the clients draw the wave where it landed.
+==============
+*/
+void G_InvokeBlastImpact( gentity_t *ent, trace_t *trace ) {
+	G_InvokeDeafenBurst( ent->parent, trace->endpos );
+
+	ent->s.eType = ET_GENERAL;
+	ent->freeAfterEvent = qtrue;
+	SnapVectorTowards( trace->endpos, ent->s.pos.trBase );
+	G_SetOrigin( ent, trace->endpos );
+	G_AddEvent( ent, EV_DEAFENING, DirToByte( trace->plane.normal ) );
+	trap_LinkEntity( ent );
+}
+
+/*
+==============
+G_InvokeBlastThink
+
+Counts down the Deafening Blast flight. If nothing was hit, the wave
+bursts in the air at the end of its range.
+==============
+*/
+void G_InvokeBlastThink( gentity_t *self ) {
+	if ( !self->inuse || self->s.eType != ET_MISSILE ) {
+		return;
+	}
+	self->nextthink = level.time + 1;
+	if ( level.time >= self->s.time + DEAFEN_LIFE_MS ) {
+		G_InvokeDeafenBurst( self->parent, self->r.currentOrigin );
+		G_AddEvent( self, EV_DEAFENING, 0 );
+		self->s.eType = ET_GENERAL;
+		self->freeAfterEvent = qtrue;
+	}
+}
+
+/*
+==============
+G_InvokeTornadoThink
+
+Per-frame tornado effect: everyone inside the vortex, except the caster,
+is lifted. The vortex fades when its lifetime ends; solid walls stop it
+earlier through the missile impact path.
+==============
+*/
+void G_InvokeTornadoThink( gentity_t *self ) {
+	gentity_t	*targ;
+	vec3_t		diff;
+	int			i;
+
+	if ( !self->inuse || self->s.eType != ET_MISSILE ) {
+		return;
+	}
+	self->nextthink = level.time + 1;
+	for ( i = 0; i < level.maxclients; i++ ) {
+		targ = &g_entities[i];
+		if ( !targ->inuse || !targ->client || targ == self->parent
+			|| targ->health <= 0
+			|| targ->client->pers.connected != CON_CONNECTED
+			|| targ->client->ps.pm_type == PM_SPECTATOR ) {
+			continue;
+		}
+		VectorSubtract( targ->client->ps.origin, self->r.currentOrigin, diff );
+		if ( VectorLengthSquared( diff ) > (float)TORNADO_RADIUS * TORNADO_RADIUS ) {
+			continue;
+		}
+		// a floor of upward speed, not an impulse: targets rise steadily
+		// while inside and fall normally once the vortex passes
+		if ( targ->client->ps.velocity[2] < TORNADO_LIFT ) {
+			targ->client->ps.velocity[2] = TORNADO_LIFT;
+		}
+	}
+	if ( level.time >= self->s.time + TORNADO_LIFE_MS ) {
+		if ( self->parent && self->parent->client ) {
+			trap_SendServerCommand( self->parent - g_entities, "print \"tornado faded\\n\"" );
+		}
+		G_FreeEntity( self );
+	}
+}
+
+/*
+==============
 G_InvokeProcessPending
 
 Lands a scheduled Sunstrike or EMP once its delay elapses.
@@ -565,6 +725,10 @@ static void G_InvokeFireHand( gentity_t *ent, invokeState_t *st, int hand,
 		G_InvokeCastSpell( ent, st, hand, spell );
 		return;
 	}
+	if ( fireTime < st->disarmedUntil ) {
+		// deafened: hand weapons stay silent until the disarm expires
+		return;
+	}
 	cooldown = G_InvokeCooldown( ent, weapon );
 	if ( !cooldown ) {
 		return;
@@ -611,6 +775,15 @@ void G_InvokeClientThink( gentity_t *ent, int buttons, int fireTime,
 			ent->client->ps.powerups[PW_INVIS] = 0;
 		}
 		st->ghostWalkUntil = 0;
+	}
+	if ( st->disarmedUntil > fireTime ) {
+		int remain = st->disarmedUntil - fireTime;
+
+		// the classic selected weapon must stay silent too: PM_Weapon only
+		// fires while weaponTime <= 0, so hold it above the disarm window
+		if ( ent->client->ps.weaponTime < remain ) {
+			ent->client->ps.weaponTime = remain;
+		}
 	}
 	G_InvokeProcessPending( ent, st, fireTime );
 	if ( buttons & BUTTON_INVOKE_LEFT ) {
