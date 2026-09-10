@@ -45,7 +45,7 @@ void CG_ResetInvokeEffects( void ) {
 	memset( cg.invokeCastTime, 0, sizeof( cg.invokeCastTime ) );
 	cg.invokeEmpStartTime = 0;
 	cg.invokeEmpEndTime = 0;
-	cg.invokeEmpCaster = 0;
+	cg.invokeEmpCaster = -1;	// -1: no caster; 0 is a real client number
 	cg.invokeDeafenStartTime = 0;
 	cg.invokeDeafenEndTime = 0;
 	cg.invokeDisarmStartTime = 0;
@@ -119,14 +119,15 @@ void CG_InvokeEmpCharge( int caster, vec3_t origin, int duration ) {
 
 // A caster's charge is retracted (death, disconnect). Only take the ring
 // down when it is the one on screen: another caster's charge may be the
-// one drawn here, and its dodge cue must survive.
+// one drawn here, and its dodge cue must survive. A cancel for an expired
+// window is a no-op: nothing of it remains on screen.
 void CG_InvokeEmpCancel( int caster ) {
-	if ( caster != cg.invokeEmpCaster ) {
+	if ( cg.invokeEmpEndTime <= cg.time || caster != cg.invokeEmpCaster ) {
 		return;
 	}
 	cg.invokeEmpStartTime = 0;
 	cg.invokeEmpEndTime = 0;
-	cg.invokeEmpCaster = 0;
+	cg.invokeEmpCaster = -1;
 }
 
 // The burst hit this player: weapons are silent for the duration. The HUD

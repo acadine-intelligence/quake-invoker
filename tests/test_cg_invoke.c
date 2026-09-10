@@ -312,10 +312,13 @@ int main( void ) {
 		vec3_t here = { 128, 0, 0 };
 
 		CG_ResetInvokeEffects();
+		CHECK( cg.invokeEmpCaster == -1 );
 		CG_InvokeEmpCharge( 0, here, 2500 );
+		CHECK( cg.invokeEmpCaster == 0 );
 		frame();
 		CHECK( entityCount > 0 && lightCount == 1 );
 		CG_InvokeEmpCancel( 0 );
+		CHECK( cg.invokeEmpCaster == -1 );
 		frame();
 		CHECK( !entityCount && !lightCount );
 	}
@@ -328,15 +331,30 @@ int main( void ) {
 		CG_ResetInvokeEffects();
 		CG_InvokeEmpCharge( 0, here, 2500 );
 		CG_InvokeEmpCharge( 1, there, 2500 );	// caster 1's ring is on screen
+		CHECK( cg.invokeEmpCaster == 1 );
 		frame();
 		CHECK( entityCount == EMP_RING_STEPS && lightCount == 1 );
 		CHECK( entities[0].origin[0] < 0 );
 		CG_InvokeEmpCancel( 0 );	// caster 0 dies; that ring is not on screen
+		CHECK( cg.invokeEmpCaster == 1 );
 		frame();
 		CHECK( entityCount == EMP_RING_STEPS && lightCount == 1 );
 		CG_InvokeEmpCancel( 1 );
+		CHECK( cg.invokeEmpCaster == -1 );
 		frame();
 		CHECK( !entityCount && !lightCount );
+	}
+
+	// a cancel that arrives after the window expired is ignored entirely
+	{
+		vec3_t here = { 64, 0, 0 };
+
+		CG_ResetInvokeEffects();
+		CG_InvokeEmpCharge( 2, here, 500 );
+		cg.time += 600;
+		CG_InvokeEmpCancel( 2 );
+		frame();
+		CHECK( !entityCount && cg.invokeEmpCaster == 2 );	// nothing was on screen to take down
 	}
 
 	// the victim-facing disarm window drains, draws, and clears

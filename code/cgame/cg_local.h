@@ -527,7 +527,8 @@ typedef struct {
 	int			invokeEmpStartTime;	// local: EMP charge window from "invemp"
 	int			invokeEmpEndTime;
 	vec3_t		invokeEmpOrigin;
-	int			invokeEmpCaster;	// entity number whose charge is on screen
+	int			invokeEmpCaster;	// entity number whose charge is on screen (-1 = none;
+										// single window, the newest charge draws)
 	int			invokeDeafenStartTime;	// local: Deafening Blast burst window
 	int			invokeDeafenEndTime;
 	vec3_t		invokeDeafenOrigin;
