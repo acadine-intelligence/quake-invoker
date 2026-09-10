@@ -26,38 +26,86 @@ int main( void ) {
 
 	BG_PushOrb( s, ORB_QUAS );
 	CHECK( s[0] == ORB_QUAS && s[1] == ORB_NONE, "first orb fills slot 0" );
-	inv = BG_FindInvocation( s );
-	CHECK( inv && !strcmp( inv->combo, "QQQ" ), "single Q fills to QQQ" );
-
-	BG_PushOrb( s, ORB_QUAS );
-	BG_PushOrb( s, ORB_EXORT );
-	CHECK( s[0] == ORB_QUAS && s[1] == ORB_QUAS && s[2] == ORB_EXORT, "Q,Q,E fills in order" );
-	inv = BG_FindInvocation( s );
-	CHECK( inv && !strcmp( inv->combo, "QQE" ) && inv->weapon == WP_ROCKET_LAUNCHER, "QQE -> Frost Rockets" );
+	CHECK( BG_FindInvocation( s ) == NULL, "one orb is not enough to invoke" );
 
 	BG_PushOrb( s, ORB_WEX );
-	CHECK( s[0] == ORB_QUAS && s[1] == ORB_EXORT && s[2] == ORB_WEX, "4th orb drops the oldest" );
+	CHECK( BG_FindInvocation( s ) == NULL, "two orbs are not enough to invoke" );
+
+	BG_PushOrb( s, ORB_EXORT );
+	CHECK( s[0] == ORB_QUAS && s[1] == ORB_WEX && s[2] == ORB_EXORT, "orbs fill in push order" );
 	inv = BG_FindInvocation( s );
-	CHECK( inv && !strcmp( inv->combo, "QWE" ), "Q,E,W is order independent -> QWE" );
+	CHECK( inv && !strcmp( inv->combo, "QWE" ) && inv->kind == INVOKE_KIND_SPELL
+		&& !strcmp( inv->name, "Deafening Blast" ), "Q,W,E -> Deafening Blast (spell)" );
+
+	// order matters: the same three orbs in another order are another recipe
+	reset( s );
+	BG_PushOrb( s, ORB_QUAS ); BG_PushOrb( s, ORB_EXORT ); BG_PushOrb( s, ORB_QUAS );
+	inv = BG_FindInvocation( s );
+	CHECK( inv && !strcmp( inv->combo, "QEQ" ) && inv->weapon == WP_SHOTGUN,
+		"Q,E,Q -> Shotgun (order selects the recipe)" );
 
 	reset( s );
-	BG_PushOrb( s, ORB_WEX ); BG_PushOrb( s, ORB_WEX ); BG_PushOrb( s, ORB_EXORT );
+	BG_PushOrb( s, ORB_WEX ); BG_PushOrb( s, ORB_QUAS ); BG_PushOrb( s, ORB_WEX );
 	inv = BG_FindInvocation( s );
-	CHECK( inv && inv->weapon == WP_LIGHTNING, "WWE -> Chaos Lightning (lightning gun)" );
+	CHECK( inv && !strcmp( inv->combo, "WQW" ) && inv->kind == INVOKE_KIND_WEAPON
+		&& inv->weapon == WP_ROCKET_LAUNCHER && inv->ammo == 15,
+		"W,Q,W -> Rocket Launcher with starting ammo" );
+
+	BG_PushOrb( s, ORB_QUAS );
+	CHECK( s[0] == ORB_QUAS && s[1] == ORB_WEX && s[2] == ORB_QUAS, "a fourth orb drops the oldest" );
+	inv = BG_FindInvocation( s );
+	CHECK( inv && !strcmp( inv->combo, "QWQ" ) && inv->weapon == WP_MACHINEGUN,
+		"rotation re-reads the new recipe" );
 
 	{
-		int i, j, matched = 0, seen[16] = {0};
-		// every one of the 10 multisets must be reachable and unique
+		int i, j, k, n = 0, spells = 0, weapons = 0, portals = 0, reserved = 0, dup = 0;
+		char expect[INVOKE_SLOTS + 1];
+		static const char letters[ORB_NUM_TYPES] = { '?', 'Q', 'W', 'E' };
+
+		// every one of the 27 ordered recipes must be reachable and unique
 		for ( i = 0; i < bg_numInvocations; i++ ) {
 			for ( j = 0; j < i; j++ ) {
-				if ( !memcmp( bg_invocations[i].counts, bg_invocations[j].counts, sizeof( bg_invocations[i].counts ) ) ) {
-					printf( "FAIL: duplicate combo %s / %s\n", bg_invocations[i].combo, bg_invocations[j].combo ); fails++;
+				if ( !strcmp( bg_invocations[i].combo, bg_invocations[j].combo ) ) {
+					printf( "FAIL: duplicate combo %s\n", bg_invocations[i].combo );
+					dup++;
 				}
 			}
-			if ( bg_invocations[i].counts[1] + bg_invocations[i].counts[2] + bg_invocations[i].counts[3] == 3 ) matched++;
-			(void)seen;
+			switch ( bg_invocations[i].kind ) {
+			case INVOKE_KIND_SPELL:		spells++;	break;
+			case INVOKE_KIND_WEAPON:	weapons++;	break;
+			case INVOKE_KIND_PORTAL:	portals++;	break;
+			default:					reserved++;	break;
+			}
 		}
-		CHECK( bg_numInvocations == 10 && matched == 10, "table has 10 distinct three-orb combos" );
+		CHECK( !dup && bg_numInvocations == 27 && spells == 10 && weapons == 9
+			&& portals == 1 && reserved == 7, "table holds all 27 ordered recipes" );
+
+		for ( i = ORB_QUAS; i < ORB_NUM_TYPES; i++ ) {
+			for ( j = ORB_QUAS; j < ORB_NUM_TYPES; j++ ) {
+				for ( k = ORB_QUAS; k < ORB_NUM_TYPES; k++ ) {
+					reset( s );
+					BG_PushOrb( s, (orbType_t)i );
+					BG_PushOrb( s, (orbType_t)j );
+					BG_PushOrb( s, (orbType_t)k );
+					expect[0] = letters[i]; expect[1] = letters[j];
+					expect[2] = letters[k]; expect[3] = '\0';
+					inv = BG_FindInvocation( s );
+					if ( !inv || strcmp( inv->combo, expect ) ) {
+						printf( "FAIL: %s did not resolve\n", expect );
+						fails++;
+					} else {
+						n++;
+					}
+				}
+			}
+		}
+		CHECK( n == 27, "all 27 ordered sequences resolve to their recipe" );
+
+		reset( s );
+		BG_PushOrb( s, ORB_EXORT ); BG_PushOrb( s, ORB_WEX ); BG_PushOrb( s, ORB_QUAS );
+		inv = BG_FindInvocation( s );
+		CHECK( inv && inv->kind == INVOKE_KIND_NONE && !strcmp( inv->name, "Reserved" ),
+			"reserved recipes are explicit" );
 	}
 
 	CHECK( BG_OrbFromString( "q" ) == ORB_QUAS && BG_OrbFromString( "E" ) == ORB_EXORT && BG_OrbFromString( "x" ) == ORB_NONE

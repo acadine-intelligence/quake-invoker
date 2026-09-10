@@ -1,6 +1,6 @@
 # 01 Invoker mechanics (draft)
 
-Status: slice 1 implemented and verified in-engine (2026-09-05). Weapons are stock placeholders; the design intent per combo below is the target, not the current behavior.
+Status: slice 1 implemented and verified in-engine (2026-09-05). Weapons are stock placeholders. The later requested target is recorded in [ordered invocation and classic spells](04-ordered-spells.md); the order-independent target below is retained as earlier design history.
 
 ## What slice 1 proves
 

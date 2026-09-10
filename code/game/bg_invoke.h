@@ -22,10 +22,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 // bg_invoke.h -- invoker orb / invocation rules shared by game and cgame
 //
-// Three orb types, three slots. Pushing an orb drops the oldest.
-// Invocation depends on the multiset of held orbs, not their order.
-// Slice 1: each invocation maps to a stock weapon so the loop can be
-// played on unmodified content. See docs/design/01-invoker-mechanics.md.
+// Three orb types, three slots. The order of the three held orbs selects
+// the invocation: 27 ordered recipes. Pushing a fourth orb drops the
+// oldest. See docs/design/04-ordered-spells.md for the recipe table:
+// ten classic spells, nine stock weapons, one portal pair, seven future
+// slots. Spells and the portal are not castable yet; invoking one says so
+// instead of granting something wrong.
 
 #ifndef BG_INVOKE_H
 #define BG_INVOKE_H
@@ -68,12 +70,19 @@ typedef enum {
 	ORB_NUM_TYPES
 } orbType_t;
 
+typedef enum {
+	INVOKE_KIND_NONE,		// reserved recipe, nothing castable yet
+	INVOKE_KIND_WEAPON,		// grants a stock weapon to the hand
+	INVOKE_KIND_SPELL,		// classic spell (castable in a later pass)
+	INVOKE_KIND_PORTAL		// portal pair (castable in a later pass)
+} invokeKind_t;
+
 typedef struct {
-	int		counts[ORB_NUM_TYPES];	// counts[ORB_QUAS] etc; ORB_NONE unused
-	int		weapon;					// WP_ granted by this invocation
-	int		ammo;					// ammo granted (-1 = infinite)
-	const char	*name;				// human name shown in HUD
-	const char	*combo;				// canonical key spelling, e.g. "QQE"
+	int			kind;		// invokeKind_t
+	int			weapon;		// WP_ for WEAPON recipes, WP_NONE otherwise
+	int			ammo;		// starting ammo for WEAPON recipes (-1 = infinite)
+	const char	*name;		// human name shown in HUD
+	const char	*combo;		// ordered recipe, oldest orb first, e.g. "WQW"
 } invocation_t;
 
 extern const invocation_t bg_invocations[];
@@ -83,9 +92,9 @@ extern const int bg_numInvocations;
 // ORB_NONE for empty. Returns the new orb count.
 int			BG_PushOrb( int slots[INVOKE_SLOTS], orbType_t orb );
 
-// find the invocation that matches the held orbs. Empty slots are filled
-// with copies of the most recently pushed orb so a single press can invoke.
-// Returns NULL when no orb is held.
+// find the invocation for the held orbs. All three slots must be set; the
+// sequence, oldest orb first, is the recipe. Returns NULL until three
+// orbs are held.
 const invocation_t *BG_FindInvocation( const int slots[INVOKE_SLOTS] );
 
 // single character for HUD display: 'Q', 'W', 'E' or '-'

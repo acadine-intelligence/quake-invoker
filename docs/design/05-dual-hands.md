@@ -1,6 +1,6 @@
 # Movement orbs and dual weapons
 
-Status: implemented and exercised on native macOS and browser builds (2026-09-07). This slice uses the existing stock-weapon recipes. Classic spell behavior and ordered recipes remain in `04-ordered-spells.md`.
+Status: implemented and exercised on native macOS and browser builds (2026-09-07). The later ordered-recipe pass changed how recipes resolve; see the note below and `04-ordered-spells.md`.
 
 ## controls
 
@@ -10,15 +10,13 @@ A new press selects one orb. Holding a key continues movement. Another selection
 
 R invokes into the right hand, replacing only that hand. T swaps the hands, including an empty hand. Mouse 1 fires the left hand. Mouse 2 fires the right hand. Each prepared hand must show its actual weapon model and firing feedback.
 
-For a rocket launcher on the left and lightning gun on the right:
-
-1. Tap D, D, A.
+1. Tap W, Q, W (rocket launcher recipe).
 2. Press R.
 3. Press T.
-4. Tap W, W, A.
+4. Tap W, W, Q (lightning gun recipe).
 5. Press R.
 
-These recipes still use the prototype's order-independent matching. Both weapons must fire with normal ammunition consumption. Preparing or swapping a weapon must preserve its ammunition and cooldown. Two copies of the same weapon share these resources.
+The earlier pass resolved recipes from orb counts only. Recipes are now order-sensitive: the rocket example above is W,Q,W and the lightning example W,W,Q (see `04-ordered-spells.md`). Controls, hands, and resource rules are unchanged.
 
 ## acceptance
 
