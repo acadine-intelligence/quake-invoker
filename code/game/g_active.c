@@ -941,7 +941,10 @@ void ClientThink_real( gentity_t *ent ) {
 		Pmove (&pm);
 #endif
 
-	G_InvokeClientThink( ent, ucmd->buttons, ucmd->serverTime );
+	// invoke fire runs after the Pmove so it sees the sanitized buttons
+	// (the MISSIONPACK intermission block clears pm.cmd.buttons) and uses
+	// the authoritative server clock for cooldowns
+	G_InvokeClientThink( ent, pm.cmd.buttons, level.time, pm.gauntletHit );
 
 	// save results of pmove
 	if ( ent->client->ps.eventSequence != oldEventSequence ) {

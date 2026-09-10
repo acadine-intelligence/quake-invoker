@@ -122,6 +122,42 @@ int main( void ) {
 		&& BG_InvokeTryFire( &hands, INVOKE_HAND_RIGHT, 2000, 0, ammo, &firedWeapon ) == INVOKE_FIRE_INVALID,
 		"invalid firing input is rejected" );
 
+	// replacing a hand releases the old weapon once no hand holds it
+	BG_InvokeHandsReset( &hands );
+	weaponBits = 0;
+	ammo[WP_ROCKET_LAUNCHER] = 0;
+	ammo[WP_PLASMAGUN] = 0;
+	CHECK( BG_InvokeEquipHand( &hands, INVOKE_HAND_RIGHT, WP_ROCKET_LAUNCHER, 15, ammo, &weaponBits )
+		&& ( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) ) && ammo[WP_ROCKET_LAUNCHER] == 15,
+		"grant sets the weapon bit and starting ammo" );
+	CHECK( BG_InvokeEquipHand( &hands, INVOKE_HAND_RIGHT, WP_PLASMAGUN, 60, ammo, &weaponBits )
+		&& !( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) ) && ammo[WP_ROCKET_LAUNCHER] == 0,
+		"replacing a hand releases the old weapon" );
+	CHECK( BG_InvokeEquipHand( &hands, INVOKE_HAND_LEFT, WP_SHOTGUN, 15, ammo, &weaponBits )
+		&& BG_InvokeEquipHand( &hands, INVOKE_HAND_RIGHT, WP_ROCKET_LAUNCHER, 15, ammo, &weaponBits )
+		&& ( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) )
+		&& BG_InvokeEquipHand( &hands, INVOKE_HAND_LEFT, WP_BFG, 10, ammo, &weaponBits )
+		&& ( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) ),
+		"a weapon survives while the other hand still holds it" );
+	CHECK( BG_InvokeEquipHand( &hands, INVOKE_HAND_LEFT, WP_MACHINEGUN, 100, ammo, &weaponBits )
+		&& BG_InvokeEquipHand( &hands, INVOKE_HAND_LEFT, WP_SHOTGUN, 15, ammo, &weaponBits )
+		&& ( weaponBits & ( 1 << WP_MACHINEGUN ) ),
+		"starting weapons are never removed" );
+	{
+		int w, packs = 1;
+
+		for ( w = WP_NONE + 1; w < WP_NUM_WEAPONS; w++ ) {
+			BG_InvokeHandsReset( &hands );
+			weaponBits = 0;
+			BG_InvokeEquipHand( &hands, INVOKE_HAND_RIGHT, w, -1, ammo, &weaponBits );
+			if ( BG_InvokePackedHands( &hands ) != ( w << 4 )
+				|| ( BG_InvokePackedHands( &hands ) >> 4 ) != w ) {
+				packs = 0;
+			}
+		}
+		CHECK( packs, "every weapon packs into the hand byte" );
+	}
+
 	printf( "%s (%d failures)\n", fails ? "TESTS FAILED" : "ALL TESTS PASSED", fails );
 	return fails ? 1 : 0;
 }

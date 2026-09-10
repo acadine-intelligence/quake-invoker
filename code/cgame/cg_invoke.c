@@ -231,6 +231,24 @@ void CG_AddInvokeEffects( void ) {
 	trap_R_AddLightToScene( origin, 160 * flash, color[0], color[1], color[2] );
 }
 
+/*
+==============
+CG_InvokeHandLabel
+
+One HUD line for a hand: no ammo count for an empty hand or for
+infinite-ammo weapons, a live count otherwise.
+==============
+*/
+static const char *CG_InvokeHandLabel( const char *label, int weapon, const int *ammo ) {
+	if ( weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+		return va( "%s Empty", label );
+	}
+	if ( ammo[weapon] < 0 ) {
+		return va( "%s %s", label, BG_InvokeWeaponName( weapon ) );
+	}
+	return va( "%s %s [%d]", label, BG_InvokeWeaponName( weapon ), ammo[weapon] );
+}
+
 void CG_DrawOrbs( void ) {
 	const invocation_t *inv;
 	const char *text;
@@ -241,7 +259,6 @@ void CG_DrawOrbs( void ) {
 	vec4_t muted = { 0.58f, 0.66f, 0.78f, 1.0f };
 	vec4_t white = { 0.94f, 0.97f, 1.0f, 1.0f };
 	int clientNum;
-	const char *leftName, *rightName;
 	vec4_t keyColor;
 
 	if ( !CG_InvokeVisible() ) {
@@ -269,10 +286,12 @@ void CG_DrawOrbs( void ) {
 	CG_DrawStringExt( 24, 147, text, muted, qtrue, qtrue, 6, 10, 0 );
 
 	clientNum = cg.snap->ps.clientNum;
-	leftName = BG_InvokeWeaponName( cg.invokeHandWeapons[clientNum][INVOKE_HAND_LEFT] );
-	rightName = BG_InvokeWeaponName( cg.invokeHandWeapons[clientNum][INVOKE_HAND_RIGHT] );
-	CG_DrawStringExt( 24, 165, va( "LEFT %s [%d]", leftName, cg.snap->ps.ammo[cg.invokeHandWeapons[clientNum][INVOKE_HAND_LEFT]] ), white, qtrue, qtrue, 6, 10, 0 );
-	CG_DrawStringExt( 24, 178, va( "RIGHT %s [%d]", rightName, cg.snap->ps.ammo[cg.invokeHandWeapons[clientNum][INVOKE_HAND_RIGHT]] ), white, qtrue, qtrue, 6, 10, 0 );
+	CG_DrawStringExt( 24, 165, CG_InvokeHandLabel( "LEFT",
+		cg.invokeHandWeapons[clientNum][INVOKE_HAND_LEFT], cg.snap->ps.ammo ),
+		white, qtrue, qtrue, 6, 10, 0 );
+	CG_DrawStringExt( 24, 178, CG_InvokeHandLabel( "RIGHT",
+		cg.invokeHandWeapons[clientNum][INVOKE_HAND_RIGHT], cg.snap->ps.ammo ),
+		white, qtrue, qtrue, 6, 10, 0 );
 
 	memcpy( keyColor, orbColors[ORB_WEX], sizeof( keyColor ) );
 	keyColor[3] = ( cg.invokeMoveKeys & INVOKE_MOVE_W ) ? 0.9f : 0.20f;

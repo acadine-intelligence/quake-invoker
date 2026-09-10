@@ -80,21 +80,73 @@ static void G_InvokeSendHands( gentity_t *ent ) {
 
 /*
 ==============
+G_InvokeBroadcastHands
+
+Resend every connected player's hands to all clients. Without this, a
+client that spawns or joins after the last hand change never learns the
+hands other players are holding.
+==============
+*/
+static void G_InvokeBroadcastHands( void ) {
+	int i;
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		if ( g_entities[i].inuse && g_entities[i].client
+			&& g_entities[i].client->pers.connected == CON_CONNECTED ) {
+			G_InvokeSendHands( &g_entities[i] );
+		}
+	}
+}
+
+/*
+==============
+G_InvokeDropGrantedWeapons
+
+Remove the weapons the invoke hands granted. Called when a life ends: a
+fresh life must not keep last life's invocations. Weapons granted by
+other systems, including the starting machinegun and gauntlet, stay.
+==============
+*/
+static void G_InvokeDropGrantedWeapons( gentity_t *ent, invokeState_t *st ) {
+	playerState_t	*ps = &ent->client->ps;
+	unsigned int	bits = st->hands.grantedWeapons, bit;
+	int		w;
+
+	for ( w = WP_NONE + 1; w < WP_NUM_WEAPONS; w++ ) {
+		bit = 1u << w;
+		if ( !( bits & bit ) || w == WP_MACHINEGUN || w == WP_GAUNTLET ) {
+			continue;
+		}
+		ps->stats[STAT_WEAPONS] &= ~(int)bit;
+		ps->ammo[w] = 0;
+		if ( ps->weapon == w ) {
+			ps->weapon = ( ps->stats[STAT_WEAPONS] & ( 1 << WP_MACHINEGUN ) )
+				? WP_MACHINEGUN : WP_GAUNTLET;
+		}
+	}
+}
+
+/*
+==============
 G_InvokeReset
 
-Called from ClientSpawn so a fresh life starts with empty slots.
+Called from ClientSpawn and PlayerDie so a fresh life starts with empty
+slots and without the previous life's invoked weapons.
 ==============
 */
 void G_InvokeReset( gentity_t *ent ) {
 	invokeState_t	*st = G_InvokeState( ent );
 	int		i;
 
+	G_InvokeDropGrantedWeapons( ent, st );
 	for ( i = 0; i < INVOKE_SLOTS; i++ ) {
 		st->orbSlots[i] = ORB_NONE;
 	}
 	BG_InvokeHandsReset( &st->hands );
 	G_InvokeSendOrbs( ent );
-	G_InvokeSendHands( ent );
+	// broadcast, not a single send: a spawning or joining client also
+	// needs every other player's hands
+	G_InvokeBroadcastHands();
 }
 
 /*
@@ -154,6 +206,13 @@ void Cmd_Invoke_f( gentity_t *ent ) {
 		inv->ammo, client->ps.ammo, &client->ps.stats[STAT_WEAPONS] ) ) {
 		return;
 	}
+	// replacing a hand can release the weapon the player had selected via
+	// the classic weapon menu; fall back to a starting weapon
+	if ( client->ps.weapon > WP_NONE
+		&& !( client->ps.stats[STAT_WEAPONS] & ( 1 << client->ps.weapon ) ) ) {
+		client->ps.weapon = ( client->ps.stats[STAT_WEAPONS] & ( 1 << WP_MACHINEGUN ) )
+			? WP_MACHINEGUN : WP_GAUNTLET;
+	}
 	G_InvokeSendHands( ent );
 	trap_SendServerCommand( ent - g_entities, va( "cp \"%s\n\"", inv->name ) );
 	trap_SendServerCommand( ent - g_entities, va( "invoked %i %i",
@@ -193,7 +252,7 @@ static int G_InvokeCooldown( gentity_t *ent, int weapon ) {
 }
 
 static void G_InvokeFireHand( gentity_t *ent, invokeState_t *st, int hand,
-	int commandTime ) {
+	int fireTime, qboolean gauntletHit ) {
 	int weapon, cooldown;
 	invokeFireResult_t result;
 
@@ -203,12 +262,14 @@ static void G_InvokeFireHand( gentity_t *ent, invokeState_t *st, int hand,
 		return;
 	}
 	if ( weapon == WP_GAUNTLET ) {
-		if ( commandTime < st->hands.nextFireTime[weapon]
+		// the classic attack path already resolved a gauntlet hit this
+		// frame; never let one swing deal damage twice
+		if ( gauntletHit || fireTime < st->hands.nextFireTime[weapon]
 			|| !ent->client->ps.ammo[weapon] || !CheckGauntletAttack( ent ) ) {
 			return;
 		}
 	}
-	result = BG_InvokeTryFire( &st->hands, hand, commandTime, cooldown,
+	result = BG_InvokeTryFire( &st->hands, hand, fireTime, cooldown,
 		ent->client->ps.ammo, &weapon );
 	if ( result != INVOKE_FIRE_OK ) {
 		return;
@@ -218,10 +279,14 @@ static void G_InvokeFireHand( gentity_t *ent, invokeState_t *st, int hand,
 		? EV_FIRE_INVOKE_LEFT : EV_FIRE_INVOKE_RIGHT, weapon );
 }
 
-void G_InvokeClientThink( gentity_t *ent, int buttons, int commandTime ) {
+// fireTime is level.time, never the client command time, so cooldowns
+// cannot be moved by a client clock. buttons is the sanitized Pmove
+// command; gauntletHit reports that the classic path already swung.
+void G_InvokeClientThink( gentity_t *ent, int buttons, int fireTime,
+	qboolean gauntletHit ) {
 	invokeState_t *st;
 
-	if ( !ent || !ent->client || commandTime < 0 || ent->health <= 0
+	if ( !ent || !ent->client || fireTime < 0 || ent->health <= 0
 		|| ent->client->sess.sessionTeam == TEAM_SPECTATOR
 		|| ent->client->ps.pm_type != PM_NORMAL
 		|| ( ent->client->ps.pm_flags & PMF_RESPAWNED ) ) {
@@ -229,9 +294,9 @@ void G_InvokeClientThink( gentity_t *ent, int buttons, int commandTime ) {
 	}
 	st = G_InvokeState( ent );
 	if ( buttons & BUTTON_INVOKE_LEFT ) {
-		G_InvokeFireHand( ent, st, INVOKE_HAND_LEFT, commandTime );
+		G_InvokeFireHand( ent, st, INVOKE_HAND_LEFT, fireTime, gauntletHit );
 	}
 	if ( buttons & BUTTON_INVOKE_RIGHT ) {
-		G_InvokeFireHand( ent, st, INVOKE_HAND_RIGHT, commandTime );
+		G_InvokeFireHand( ent, st, INVOKE_HAND_RIGHT, fireTime, gauntletHit );
 	}
 }

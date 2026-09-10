@@ -434,7 +434,7 @@ void G_InvokeReset( gentity_t *ent );
 void Cmd_Orb_f( gentity_t *ent );
 void Cmd_Invoke_f( gentity_t *ent );
 void Cmd_InvokeSwap_f( gentity_t *ent );
-void G_InvokeClientThink( gentity_t *ent, int buttons, int commandTime );
+void G_InvokeClientThink( gentity_t *ent, int buttons, int fireTime, qboolean gauntletHit );
 void BroadcastTeamChange( gclient_t *client, int oldTeam );
 void SetTeam( gentity_t *ent, const char *s );
 void Cmd_FollowCycle_f( gentity_t *ent, int dir );

@@ -168,13 +168,31 @@ int BG_InvokeHandWeapon( const invokeHands_t *hands, int hand ) {
 	return weapon;
 }
 
+// STAT_INVOKE_HANDS packs each hand's weapon into 4 bits; this fails to
+// compile if a new weapon ever pushes the weapon count past 16.
+typedef char bg_invoke_weapon_pack_fits[( WP_NUM_WEAPONS <= 16 ) ? 1 : -1];
+
 int BG_InvokeEquipHand( invokeHands_t *hands, int hand, int weapon,
 	int initialAmmo, int ammo[WP_NUM_WEAPONS], int *weaponBits ) {
-	unsigned int bit;
+	unsigned int bit, oldBit;
+	int old;
 
 	if ( !hands || !ammo || !weaponBits || hand < 0 || hand >= INVOKE_HANDS
 		|| weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS || initialAmmo < -1 ) {
 		return 0;
+	}
+	// a weapon lives only while a hand holds it: replacing it drops the old
+	// weapon unless the other hand still holds a copy. Starting weapons are
+	// never removed.
+	old = hands->weapon[hand];
+	if ( old > WP_NONE && old < WP_NUM_WEAPONS && old != weapon
+		&& old != WP_MACHINEGUN && old != WP_GAUNTLET
+		&& old != BG_InvokeHandWeapon( hands, hand == INVOKE_HAND_LEFT
+			? INVOKE_HAND_RIGHT : INVOKE_HAND_LEFT ) ) {
+		oldBit = 1u << old;
+		*weaponBits &= ~(int)oldBit;
+		ammo[old] = 0;
+		hands->grantedWeapons &= ~oldBit;
 	}
 	bit = 1u << weapon;
 	if ( !( hands->grantedWeapons & bit ) ) {

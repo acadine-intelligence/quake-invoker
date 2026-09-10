@@ -32,10 +32,12 @@ These recipes still use the prototype's order-independent matching. Both weapons
 
 ## verification
 
-`make -C tests` passes 25 shared-logic checks and 65 cgame checks. Both CMake builds succeed. `python3 tests/run_visual_smoke.py` runs the native game through dual firing and respawn, with screenshots.
+`make -C tests` passes the shared-logic check suite and 65 cgame checks. Both CMake builds succeed. `python3 tests/run_visual_smoke.py` runs the native game through dual firing and respawn, with screenshots.
 
 The browser was exercised with real key and mouse events through local Chrome. A held W moved the player and generated one orb despite repeated key-down events. A/D and W/S both remained visible when held together. Left-click spent rocket ammunition and caused splash damage. Right-click fired lightning and spent lightning ammunition. T exchanged the actual models and retained ammunition.
 
 The read-only input review identified a held-key reset issue. A failing regression test reproduced it before the fix. Full independent server/render review remains separate from these local checks.
 
 The optional `configs/invoker-demo.cfg` prepares a rocket launcher on the left and lightning gun on the right. Launch it with `activeAction` after map loading. The regular `invoker.cfg` only installs controls.
+
+Review follow-up (2026-09-10): replaced weapons are released when no hand holds them, so they no longer stay selectable through the classic weapon menu; a fresh life drops the previous life's invocations; late joins receive every player's hands; the gauntlet cannot double-hit when the classic and invoke paths run in one frame; invoke cooldowns use the server clock; a compile-time check pins the 4-bit hand packing; and the stock viewmodel shows again while both hands are empty.
