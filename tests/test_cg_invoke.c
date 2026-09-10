@@ -339,27 +339,59 @@ int main( void ) {
 		CHECK( !entityCount && !lightCount );
 	}
 
-	// the victim-facing disarm window drains and clears
+	// the victim-facing disarm window drains, draws, and clears
 	{
 		CG_ResetInvokeEffects();
 		CHECK( CG_InvokeDisarmFraction() == 0.0f );
 		CG_InvokeDisarm( 3000 );
 		CHECK( CG_InvokeDisarmFraction() > 0.9f );
+		frame();
+		CHECK( strstr( hudText, "WEAPONS DISABLED" ) != NULL );
 		cg.time += 1500;
 		CHECK( CG_InvokeDisarmFraction() > 0.4f && CG_InvokeDisarmFraction() < 0.6f );
 		cg.time += 1600;
+		frame();
+		CHECK( CG_InvokeDisarmFraction() == 0.0f );
+		CHECK( strstr( hudText, "WEAPONS DISABLED" ) == NULL );
+
+		// the reset path must clear a live window, not just a fresh one
+		CG_InvokeDisarm( 3000 );
+		CHECK( cg.invokeDisarmEndTime > cg.time );
+		CG_ResetInvokeEffects();
+		CHECK( cg.invokeDisarmEndTime == 0 && CG_InvokeDisarmFraction() == 0.0f );
+
+		// the received value drives the window: a shorter lock expires sooner
+		CG_InvokeDisarm( 1000 );
+		CHECK( CG_InvokeDisarmFraction() > 0.0f );
+		cg.time += 1100;
 		CHECK( CG_InvokeDisarmFraction() == 0.0f );
 	}
 
-	// the chilled bar drains the same way the disarm bar does
+	// the chilled window drains, draws, and clears like the disarm bar
 	{
 		CG_ResetInvokeEffects();
 		CHECK( CG_InvokeChillFraction() == 0.0f );
 		CG_InvokeChill( 5000 );
 		CHECK( CG_InvokeChillFraction() > 0.9f );
+		frame();
+		CHECK( strstr( hudText, "CHILLED" ) != NULL );
 		cg.time += 2500;
 		CHECK( CG_InvokeChillFraction() > 0.4f && CG_InvokeChillFraction() < 0.6f );
 		cg.time += 2600;
+		frame();
+		CHECK( CG_InvokeChillFraction() == 0.0f );
+		CHECK( strstr( hudText, "CHILLED" ) == NULL );
+
+		// the reset path must clear a live debuff, not just a fresh one
+		CG_InvokeChill( 2000 );
+		CHECK( cg.invokeChillEndTime > cg.time );
+		CG_ResetInvokeEffects();
+		CHECK( cg.invokeChillEndTime == 0 && CG_InvokeChillFraction() == 0.0f );
+
+		// a non-default duration expires on its own clock
+		CG_InvokeChill( 1000 );
+		CHECK( CG_InvokeChillFraction() > 0.0f );
+		cg.time += 1100;
 		CHECK( CG_InvokeChillFraction() == 0.0f );
 	}
 

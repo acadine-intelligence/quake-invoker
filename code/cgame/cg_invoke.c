@@ -670,7 +670,7 @@ void CG_DrawOrbs( void ) {
 		const vec4_t warnBack = { 0.09f, 0.13f, 0.21f, 0.90f };
 		float left = CG_InvokeDisarmFraction();
 
-		CG_DrawStringExt( 268, 268, "WEAPONS DISABLED", warnCol, qtrue, qtrue, 6, 10, 0 );
+		CG_DrawStringExt( 272, 268, "WEAPONS DISABLED", warnCol, qtrue, qtrue, 6, 10, 0 );
 		CG_FillRect( 268, 281, 104, 5, warnBack );
 		CG_FillRect( 268, 281, 104 * left, 5, warnCol );
 	}
@@ -682,7 +682,7 @@ void CG_DrawOrbs( void ) {
 		const vec4_t chillBack = { 0.09f, 0.13f, 0.21f, 0.90f };
 		float left = CG_InvokeChillFraction();
 
-		CG_DrawStringExt( 268, 292, "CHILLED", chillCol, qtrue, qtrue, 6, 10, 0 );
+		CG_DrawStringExt( 299, 292, "CHILLED", chillCol, qtrue, qtrue, 6, 10, 0 );
 		CG_FillRect( 268, 305, 104, 5, chillBack );
 		CG_FillRect( 268, 305, 104 * left, 5, chillCol );
 	}
