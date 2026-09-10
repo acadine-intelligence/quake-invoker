@@ -1309,6 +1309,7 @@ void CG_InvokeStrikeBeam( vec3_t start, vec3_t end );
 void CG_InvokeMovementKey( int moveKey, qboolean down );
 void CG_InvokeHandFired( centity_t *cent, int hand, int weapon );
 void CG_InvokeSpellCast( int hand, int spell );
+#define EMP_RING_STEPS 24		// sprites that draw the EMP charge ring
 void CG_InvokeEmpCharge( vec3_t origin, int duration );
 float CG_InvokeReadyFraction( int now, int castTime, int cooldown );
 void CG_AddInvokeEffects( void );

@@ -295,12 +295,13 @@ int main( void ) {
 		CG_ResetInvokeEffects();
 		CG_InvokeEmpCharge( here, 2500 );
 		frame();
-		CHECK( entityCount == 1 && lightCount == 1 );	// ring plus charge light
-		CHECK( entities[0].reType == RT_SPRITE && entities[0].radius > 20 );
+		CHECK( entityCount == EMP_RING_STEPS && lightCount == 1 );	// ring plus charge light
+		CHECK( entities[0].reType == RT_SPRITE && entities[1].reType == RT_SPRITE );
+		CHECK( entities[0].origin[0] != entities[1].origin[0] );
 		ringRadius = entities[0].radius;
 		cg.time += 2000;
 		frame();
-		CHECK( entityCount == 1 && entities[0].radius > ringRadius );
+		CHECK( entityCount == EMP_RING_STEPS && entities[0].radius > ringRadius );
 		cg.time += 600;
 		frame();
 		CHECK( !entityCount && !lightCount );

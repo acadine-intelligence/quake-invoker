@@ -348,9 +348,11 @@ static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int hand,
 	case SPELL_EMP:
 		VectorCopy( ps->origin, st->empOrigin );
 		st->empTime = level.time + 2500;
-		// the client draws the charge ring from this until the burst
-		trap_SendServerCommand( ent - g_entities, va( "invemp %f %f %f %i\n",
-			st->empOrigin[0], st->empOrigin[1], st->empOrigin[2], 2500 ) );
+		// the client draws the charge ring from this until the burst.
+		// Coordinates go as integers: float varargs are not safe through
+		// this VM's print/format path.
+		trap_SendServerCommand( ent - g_entities, va( "invemp %i %i %i %i\n",
+			(int)st->empOrigin[0], (int)st->empOrigin[1], (int)st->empOrigin[2], 2500 ) );
 		break;
 	case SPELL_CHAOS_METEOR:
 		VectorCopy( ps->origin, start );

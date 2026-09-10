@@ -313,7 +313,9 @@ void CG_AddInvokeEffects( void ) {
 		trap_R_AddRefEntityToScene( &beam );
 	}
 
-	// emp: an expanding charge ring at the burst point until it lands
+	// emp: an expanding charge ring at the burst point until it lands.
+	// A circle of sprites, not one billboard: a single sprite centred at
+	// the caster's feet sits below the frustum and gets culled.
 	if ( cg.invokeEmpEndTime > cg.time ) {
 		float charge = 0.0f;
 
@@ -327,8 +329,16 @@ void CG_AddInvokeEffects( void ) {
 				charge = 1;
 			}
 		}
-		CG_InvokeWorldSprite( cg.invokeEmpOrigin, 24 + 170 * charge,
-			orbColors[ORB_WEX], 0.35f + 0.65f * charge, charge * 120 );
+		for ( i = 0; i < EMP_RING_STEPS; i++ ) {
+			float	a = phase * 0.5f + i * ( 2.0f * M_PI / EMP_RING_STEPS );
+			vec3_t	p;
+
+			p[0] = cg.invokeEmpOrigin[0] + ( 24 + 200 * charge ) * cos( a );
+			p[1] = cg.invokeEmpOrigin[1] + ( 24 + 200 * charge ) * sin( a );
+			p[2] = cg.invokeEmpOrigin[2] + 2;
+			CG_InvokeWorldSprite( p, 5 + 15 * charge,
+				orbColors[ORB_WEX], 0.45f + 0.55f * charge, a * 180 / M_PI );
+		}
 		trap_R_AddLightToScene( cg.invokeEmpOrigin, 100 + 140 * charge,
 			0.35f, 0.6f, 1.0f );
 	}
