@@ -24,13 +24,15 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 // Client commands:
 //   orb <q|w|e>   push an orb into the player's slots
-//   invoke        put the weapon matching the held orbs in the right hand
+//   invoke        put the matching weapon or spell in the right hand
 //   invswap       exchange the left and right hand, including an empty hand
 //
 // State lives in a game-owned per-client table (see below). The client
 // learns the orb slots through the "orbs" server command so it can draw
-// them; the invoked weapon arrives through the STAT_WEAPONS / ammo snapshot
-// path and a weapon-select server command.
+// them; invoked weapons arrive through the STAT_WEAPONS / ammo snapshot
+// path, invoked spells through STAT_INVOKE_SPELLS, and mana through
+// STAT_INVOKE_MANA. Castable spells: Ghost Walk (invisibility for 5 s) and
+// Sunstrike (aimed strike after 1.75 s, 200-unit radius, 90 damage).
 
 #include "g_local.h"
 #include "bg_invoke.h"
@@ -41,6 +43,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 typedef struct {
 	int		orbSlots[INVOKE_SLOTS];	// orbType_t values, oldest first
 	invokeHands_t hands;
+	int		lastManaTime;			// level.time of the last regen step
+	int		ghostWalkUntil;			// level.time the cast invisibility ends
+	int		sunstrikeTime;			// level.time the aimed strike lands (0 = none)
+	vec3_t	sunstrikeOrigin;
 } invokeState_t;
 
 static invokeState_t	g_invoke[MAX_CLIENTS];
@@ -73,9 +79,13 @@ static void G_InvokeSendHands( gentity_t *ent ) {
 	}
 	st = G_InvokeState( ent );
 	ent->client->ps.stats[STAT_INVOKE_HANDS] = 256 | BG_InvokePackedHands( &st->hands );
-	trap_SendServerCommand( -1, va( "invhands %i %i %i", clientNum,
+	ent->client->ps.stats[STAT_INVOKE_SPELLS] = 256 | BG_InvokePackedSpells( &st->hands );
+	ent->client->ps.stats[STAT_INVOKE_MANA] = (int)st->hands.mana;
+	trap_SendServerCommand( -1, va( "invhands %i %i %i %i %i", clientNum,
 		BG_InvokeHandWeapon( &st->hands, INVOKE_HAND_LEFT ),
-		BG_InvokeHandWeapon( &st->hands, INVOKE_HAND_RIGHT ) ) );
+		BG_InvokeHandWeapon( &st->hands, INVOKE_HAND_RIGHT ),
+		BG_InvokeHandSpell( &st->hands, INVOKE_HAND_LEFT ),
+		BG_InvokeHandSpell( &st->hands, INVOKE_HAND_RIGHT ) ) );
 }
 
 /*
@@ -143,6 +153,12 @@ void G_InvokeReset( gentity_t *ent ) {
 		st->orbSlots[i] = ORB_NONE;
 	}
 	BG_InvokeHandsReset( &st->hands );
+	st->hands.mana = INVOKE_MANA_MAX;
+	st->lastManaTime = level.time;
+	st->ghostWalkUntil = 0;
+	st->sunstrikeTime = 0;
+	VectorClear( st->sunstrikeOrigin );
+	ent->client->ps.stats[STAT_INVOKE_MANA] = INVOKE_MANA_MAX;
 	G_InvokeSendOrbs( ent );
 	// broadcast, not a single send: a spawning or joining client also
 	// needs every other player's hands
@@ -181,6 +197,40 @@ void Cmd_Orb_f( gentity_t *ent ) {
 
 /*
 ==============
+G_InvokeSpellCastable
+
+What can be cast today. Everything else reports "not castable yet" instead
+of granting something wrong.
+==============
+*/
+static qboolean G_InvokeSpellCastable( int spell ) {
+	switch ( spell ) {
+	case SPELL_GHOST_WALK:
+	case SPELL_SUNSTRIKE:
+		return qtrue;
+	default:
+		return qfalse;
+	}
+}
+
+/*
+==============
+G_InvokeEnsureHeldSelection
+
+Replacing a hand can release the weapon the player selected through the
+classic weapon menu; fall back to a starting weapon.
+==============
+*/
+static void G_InvokeEnsureHeldSelection( gentity_t *ent ) {
+	if ( ent->client->ps.weapon > WP_NONE
+		&& !( ent->client->ps.stats[STAT_WEAPONS] & ( 1 << ent->client->ps.weapon ) ) ) {
+		ent->client->ps.weapon = ( ent->client->ps.stats[STAT_WEAPONS] & ( 1 << WP_MACHINEGUN ) )
+			? WP_MACHINEGUN : WP_GAUNTLET;
+	}
+}
+
+/*
+==============
 Cmd_Invoke_f
 ==============
 */
@@ -201,6 +251,24 @@ void Cmd_Invoke_f( gentity_t *ent ) {
 		trap_SendServerCommand( ent - g_entities, "cp \"Pick three orbs with D/W/A first\n\"" );
 		return;
 	}
+	if ( inv->kind == INVOKE_KIND_SPELL ) {
+		if ( !G_InvokeSpellCastable( inv->spell ) ) {
+			trap_SendServerCommand( ent - g_entities, va( "cp \"%s: not castable yet\n\"", inv->name ) );
+			trap_SendServerCommand( ent - g_entities, va( "print \"%s: not castable yet\n\"", inv->name ) );
+			return;
+		}
+		if ( !BG_InvokeEquipSpell( &st->hands, INVOKE_HAND_RIGHT, inv->spell,
+			client->ps.ammo, &client->ps.stats[STAT_WEAPONS] ) ) {
+			return;
+		}
+		G_InvokeEnsureHeldSelection( ent );
+		G_InvokeSendHands( ent );
+		trap_SendServerCommand( ent - g_entities, va( "cp \"%s\n\"", inv->name ) );
+		trap_SendServerCommand( ent - g_entities, va( "invoked %i %i %i",
+			INVOKE_HAND_RIGHT, WP_NONE, inv->spell ) );
+		trap_SendServerCommand( ent - g_entities, va( "print \"invoked %s (%s)\n\"", inv->name, inv->combo ) );
+		return;
+	}
 	if ( inv->kind != INVOKE_KIND_WEAPON ) {
 		// Spells and the portal are not castable yet; report that instead of
 		// silently granting nothing.
@@ -213,17 +281,11 @@ void Cmd_Invoke_f( gentity_t *ent ) {
 		inv->ammo, client->ps.ammo, &client->ps.stats[STAT_WEAPONS] ) ) {
 		return;
 	}
-	// replacing a hand can release the weapon the player had selected via
-	// the classic weapon menu; fall back to a starting weapon
-	if ( client->ps.weapon > WP_NONE
-		&& !( client->ps.stats[STAT_WEAPONS] & ( 1 << client->ps.weapon ) ) ) {
-		client->ps.weapon = ( client->ps.stats[STAT_WEAPONS] & ( 1 << WP_MACHINEGUN ) )
-			? WP_MACHINEGUN : WP_GAUNTLET;
-	}
+	G_InvokeEnsureHeldSelection( ent );
 	G_InvokeSendHands( ent );
 	trap_SendServerCommand( ent - g_entities, va( "cp \"%s\n\"", inv->name ) );
-	trap_SendServerCommand( ent - g_entities, va( "invoked %i %i",
-		INVOKE_HAND_RIGHT, inv->weapon ) );
+	trap_SendServerCommand( ent - g_entities, va( "invoked %i %i %i",
+		INVOKE_HAND_RIGHT, inv->weapon, SPELL_NONE ) );
 	trap_SendServerCommand( ent - g_entities, va( "print \"invoked %s (%s)\n\"", inv->name, inv->combo ) );
 }
 
@@ -240,6 +302,117 @@ void Cmd_InvokeSwap_f( gentity_t *ent ) {
 	st = G_InvokeState( ent );
 	BG_InvokeSwapHands( &st->hands );
 	G_InvokeSendHands( ent );
+}
+
+/*
+==============
+G_InvokeCastSpell
+
+Runs a successful cast. Ghost Walk turns the caster invisible for 5 s;
+Sunstrike aims now and lands 1.75 s later, so the strike is dodgeable.
+==============
+*/
+static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int spell ) {
+	playerState_t		*ps = &ent->client->ps;
+	const spellDef_t	*def = BG_SpellDef( spell );
+	vec3_t			start, end, forward;
+	trace_t			tr;
+
+	if ( !def ) {
+		return;
+	}
+	switch ( spell ) {
+	case SPELL_GHOST_WALK:
+		st->ghostWalkUntil = level.time + 5000;
+		ps->powerups[PW_INVIS] = st->ghostWalkUntil;
+		break;
+	case SPELL_SUNSTRIKE:
+		VectorCopy( ps->origin, start );
+		start[2] += ps->viewheight;
+		AngleVectors( ps->viewangles, forward, NULL, NULL );
+		VectorMA( start, 8192, forward, end );
+		trap_Trace( &tr, start, NULL, NULL, end, ent->s.number, MASK_SHOT );
+		VectorCopy( tr.endpos, st->sunstrikeOrigin );
+		st->sunstrikeTime = level.time + 1750;
+		break;
+	default:
+		return;
+	}
+	trap_SendServerCommand( ent - g_entities, va( "cp \"%s\n\"", def->name ) );
+	trap_SendServerCommand( ent - g_entities, va( "print \"cast %s (-%i mana)\n\"",
+		def->name, def->cost ) );
+}
+
+/*
+==============
+G_InvokeStrike
+
+Applies a landed Sunstrike: a sky-to-ground beam event and radius damage.
+The caster is immune to the strike.
+==============
+*/
+static void G_InvokeStrike( gentity_t *ent, vec3_t origin ) {
+	gentity_t	*te, *targ;
+	vec3_t		dir, diff, up = { 0.0f, 0.0f, 1.0f };
+	int		i;
+
+	te = G_TempEntity( origin, EV_SUNSTRIKE );
+	VectorMA( origin, 768, up, te->s.origin2 );
+	te->s.eventParm = DirToByte( up );
+	te->s.weapon = WP_ROCKET_LAUNCHER;
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		targ = &g_entities[i];
+		if ( !targ->inuse || !targ->client || targ == ent || targ->health <= 0
+			|| targ->client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		VectorSubtract( targ->client->ps.origin, origin, diff );
+		if ( VectorLengthSquared( diff ) > 200.0f * 200.0f ) {
+			continue;
+		}
+		VectorCopy( diff, dir );
+		VectorNormalize( dir );
+		G_Damage( targ, ent, ent, dir, targ->client->ps.origin, 90, 0, MOD_SUNSTRIKE );
+	}
+}
+
+/*
+==============
+G_InvokeProcessPending
+
+Lands a scheduled Sunstrike once its delay elapses.
+==============
+*/
+static void G_InvokeProcessPending( gentity_t *ent, invokeState_t *st, int now ) {
+	vec3_t	origin;
+
+	if ( !st->sunstrikeTime || now < st->sunstrikeTime ) {
+		return;
+	}
+	st->sunstrikeTime = 0;
+	VectorCopy( st->sunstrikeOrigin, origin );
+	G_InvokeStrike( ent, origin );
+	trap_SendServerCommand( ent - g_entities, "print \"sunstrike impact\n\"" );
+}
+
+/*
+==============
+G_InvokeSyncMana
+==============
+*/
+static void G_InvokeSyncMana( gentity_t *ent, invokeState_t *st ) {
+	int mana = (int)st->hands.mana;
+
+	if ( mana < 0 ) {
+		mana = 0;
+	}
+	if ( mana > INVOKE_MANA_MAX ) {
+		mana = INVOKE_MANA_MAX;
+	}
+	if ( ent->client->ps.stats[STAT_INVOKE_MANA] != mana ) {
+		ent->client->ps.stats[STAT_INVOKE_MANA] = mana;
+	}
 }
 
 static int G_InvokeCooldown( gentity_t *ent, int weapon ) {
@@ -260,10 +433,29 @@ static int G_InvokeCooldown( gentity_t *ent, int weapon ) {
 
 static void G_InvokeFireHand( gentity_t *ent, invokeState_t *st, int hand,
 	int fireTime, qboolean gauntletHit ) {
-	int weapon, cooldown;
+	int weapon, spell, cooldown;
 	invokeFireResult_t result;
+	const spellDef_t *def;
 
 	weapon = BG_InvokeHandWeapon( &st->hands, hand );
+	if ( weapon == WP_NONE ) {
+		// a hand holding a spell casts instead of firing a gun
+		spell = BG_InvokeHandSpell( &st->hands, hand );
+		if ( spell == SPELL_NONE || !G_InvokeSpellCastable( spell ) ) {
+			return;
+		}
+		def = BG_SpellDef( spell );
+		if ( !def ) {
+			return;
+		}
+		result = BG_InvokeTryCast( &st->hands, hand, fireTime, def->cost,
+			def->cooldown, &spell );
+		if ( result != INVOKE_FIRE_OK ) {
+			return;
+		}
+		G_InvokeCastSpell( ent, st, spell );
+		return;
+	}
 	cooldown = G_InvokeCooldown( ent, weapon );
 	if ( !cooldown ) {
 		return;
@@ -300,10 +492,23 @@ void G_InvokeClientThink( gentity_t *ent, int buttons, int fireTime,
 		return;
 	}
 	st = G_InvokeState( ent );
+	// mana flows back while alive; BG_InvokeManaRegen clamps long frames
+	BG_InvokeManaRegen( &st->hands, fireTime - st->lastManaTime );
+	st->lastManaTime = fireTime;
+	if ( st->ghostWalkUntil && fireTime >= st->ghostWalkUntil ) {
+		// clear the invisibility only when this cast still owns the slot;
+		// a later item pickup must keep its own timer
+		if ( ent->client->ps.powerups[PW_INVIS] == st->ghostWalkUntil ) {
+			ent->client->ps.powerups[PW_INVIS] = 0;
+		}
+		st->ghostWalkUntil = 0;
+	}
+	G_InvokeProcessPending( ent, st, fireTime );
 	if ( buttons & BUTTON_INVOKE_LEFT ) {
 		G_InvokeFireHand( ent, st, INVOKE_HAND_LEFT, fireTime, gauntletHit );
 	}
 	if ( buttons & BUTTON_INVOKE_RIGHT ) {
 		G_InvokeFireHand( ent, st, INVOKE_HAND_RIGHT, fireTime, gauntletHit );
 	}
+	G_InvokeSyncMana( ent, st );
 }

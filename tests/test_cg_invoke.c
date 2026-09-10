@@ -110,6 +110,13 @@ int main( void ) {
 	CHECK( cg.invokeHandWeapons[0][INVOKE_HAND_LEFT] == WP_NONE
 		&& cg.invokeHandWeapons[0][INVOKE_HAND_RIGHT] == WP_NONE );
 	CG_SetInvokeHands( 0, WP_SHOTGUN, WP_ROCKET_LAUNCHER );
+	CG_SetInvokeSpells( -1, SPELL_GHOST_WALK, SPELL_SUNSTRIKE );
+	CG_SetInvokeSpells( 0, SPELL_GHOST_WALK, SPELL_SUNSTRIKE );
+	CHECK( cg.invokeHandSpells[0][INVOKE_HAND_LEFT] == SPELL_GHOST_WALK
+		&& cg.invokeHandSpells[0][INVOKE_HAND_RIGHT] == SPELL_SUNSTRIKE );
+	CG_SetInvokeSpells( 0, -7, SPELL_NUM );
+	CHECK( cg.invokeHandSpells[0][INVOKE_HAND_LEFT] == SPELL_NONE
+		&& cg.invokeHandSpells[0][INVOKE_HAND_RIGHT] == SPELL_NONE );
 	frame();
 	CHECK( entityCount == 0 && lightCount == 0 && hudCount == 3 );
 	CG_SetOrbSlots( -1, ORB_NUM_TYPES, 100000 );
@@ -131,10 +138,12 @@ int main( void ) {
 		CHECK( entities[i].reType == RT_SPRITE && entities[i].radius > 0 );
 		CHECK( isfinite( entities[i].origin[0] ) && isfinite( entities[i].origin[1] ) );
 	}
-	CG_InvokeWeapon( -1, WP_RAILGUN );
-	CG_InvokeWeapon( INVOKE_HAND_RIGHT, WP_NUM_WEAPONS );
+	CG_InvokeWeapon( -1, WP_RAILGUN, SPELL_NONE );
+	CG_InvokeWeapon( INVOKE_HAND_RIGHT, WP_NUM_WEAPONS, SPELL_NONE );
 	CHECK( !cg.invokeEffectEndTime );
-	CG_InvokeWeapon( INVOKE_HAND_RIGHT, WP_GRENADE_LAUNCHER );
+	CG_InvokeWeapon( INVOKE_HAND_RIGHT, WP_NONE, SPELL_SUNSTRIKE );
+	CHECK( !cg.invokeEffectEndTime );
+	CG_InvokeWeapon( INVOKE_HAND_RIGHT, WP_GRENADE_LAUNCHER, SPELL_NONE );
 	frame();
 	CHECK( entityCount == 33 && lightCount == 1 && intensity == 160 );
 	peakColor = entities[15].shaderRGBA[0];
@@ -150,6 +159,12 @@ int main( void ) {
 	frame();
 	CHECK( strstr( hudText, "LEFT Shotgun [7]" )
 		&& strstr( hudText, "RIGHT Rocket Launcher [9]" ) );
+	cg.snap->ps.stats[STAT_INVOKE_MANA] = 87;
+	CG_SetInvokeSpells( 0, SPELL_NONE, SPELL_GHOST_WALK );
+	frame();
+	CHECK( strstr( hudText, "MANA" ) && strstr( hudText, "87" ) );
+	CHECK( strstr( hudText, "RIGHT Ghost Walk" ) && strstr( hudText, "LEFT Shotgun [7]" ) );
+	CG_SetInvokeSpells( 0, SPELL_NONE, SPELL_NONE );
 	CHECK( entities[15].shaderRGBA[0] == peakColor );
 	cg.time += 300;
 	frame();
@@ -158,7 +173,7 @@ int main( void ) {
 	frame();
 	CHECK( entityCount == 15 && !lightCount );
 
-	CG_InvokeWeapon( INVOKE_HAND_RIGHT, WP_ROCKET_LAUNCHER );
+	CG_InvokeWeapon( INVOKE_HAND_RIGHT, WP_ROCKET_LAUNCHER, SPELL_NONE );
 	cg_invokeEffects.integer = 0;
 	frame();
 	CHECK( !entityCount && !lightCount && hudCount == 3 );
@@ -191,6 +206,31 @@ int main( void ) {
 	frame();
 	CHECK( !cg.invokeEffectEndTime && !BG_FindInvocation( cg.invokedSlots ) );
 	CHECK( !entityCount && !lightCount );
+
+	// a spell invoke flashes the same effect, keyed by spell ID
+	cg.time += 1000;
+	CG_SetOrbSlots( ORB_QUAS, ORB_QUAS, ORB_WEX );	// Q,Q,W = Ghost Walk
+	CG_InvokeWeapon( INVOKE_HAND_RIGHT, WP_NONE, SPELL_SUNSTRIKE );
+	frame();
+	CHECK( entityCount == 15 && !lightCount );		// wrong spell ID draws no flash
+	CG_InvokeWeapon( INVOKE_HAND_RIGHT, WP_NONE, SPELL_GHOST_WALK );
+	CHECK( cg.invokeEffectEndTime > cg.time );
+	frame();
+	CHECK( entityCount == 33 && lightCount == 1 );	// three trails plus the flash
+	CG_ResetInvokeEffects();
+
+	// the sunstrike beam draws for its short lifetime, from cg state only
+	{
+		vec3_t sky = { 0, 0, 512 }, ground = { 0, 0, 0 };
+
+		CG_InvokeStrikeBeam( sky, ground );
+		frame();
+		CHECK( entityCount == 1 && lightCount == 0 );
+		CHECK( entities[0].reType == RT_LIGHTNING );
+		cg.time += 700;
+		frame();
+		CHECK( !entityCount );
+	}
 	cg.snap = NULL;
 	frame();
 	CHECK( !entityCount && !hudCount );

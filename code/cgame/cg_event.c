@@ -819,6 +819,16 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		DEBUGNAME("EV_FIRE_INVOKE_RIGHT");
 		CG_FireInvokeWeapon( cent, INVOKE_HAND_RIGHT, es->eventParm );
 		break;
+	case EV_SUNSTRIKE:
+	{
+		vec3_t	dir;
+
+		DEBUGNAME("EV_SUNSTRIKE");
+		ByteToDir( es->eventParm, dir );
+		CG_InvokeStrikeBeam( es->origin2, cent->lerpOrigin );
+		CG_MissileHitWall( es->weapon, 0, cent->lerpOrigin, dir, IMPACTSOUND_DEFAULT );
+	}
+		break;
 
 	case EV_USE_ITEM0:
 		DEBUGNAME("EV_USE_ITEM0");

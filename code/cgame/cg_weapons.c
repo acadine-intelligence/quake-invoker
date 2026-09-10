@@ -1429,6 +1429,10 @@ void CG_AddViewWeapon( playerState_t *ps ) {
 		// empty hands fall through to the single-weapon path below, so a
 		// fresh spawn still shows the selected stock viewmodel
 	}
+	if ( ps->stats[STAT_INVOKE_SPELLS] & 256 ) {
+		CG_SetInvokeSpells( ps->clientNum, ps->stats[STAT_INVOKE_SPELLS] & 15,
+			( ps->stats[STAT_INVOKE_SPELLS] >> 4 ) & 15 );
+	}
 	if ( ps->persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
 		return;
 	}
