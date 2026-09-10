@@ -293,7 +293,7 @@ int main( void ) {
 		float ringRadius;
 
 		CG_ResetInvokeEffects();
-		CG_InvokeEmpCharge( here, 2500 );
+		CG_InvokeEmpCharge( 0, here, 2500 );
 		frame();
 		CHECK( entityCount == EMP_RING_STEPS && lightCount == 1 );	// ring plus charge light
 		CHECK( entities[0].reType == RT_SPRITE && entities[1].reType == RT_SPRITE );
@@ -312,10 +312,29 @@ int main( void ) {
 		vec3_t here = { 128, 0, 0 };
 
 		CG_ResetInvokeEffects();
-		CG_InvokeEmpCharge( here, 2500 );
+		CG_InvokeEmpCharge( 0, here, 2500 );
 		frame();
 		CHECK( entityCount > 0 && lightCount == 1 );
-		CG_InvokeEmpCancel();
+		CG_InvokeEmpCancel( 0 );
+		frame();
+		CHECK( !entityCount && !lightCount );
+	}
+
+	// a cancel only takes down the ring of the caster it names
+	{
+		vec3_t here = { 128, 0, 0 };
+		vec3_t there = { -128, 0, 0 };
+
+		CG_ResetInvokeEffects();
+		CG_InvokeEmpCharge( 0, here, 2500 );
+		CG_InvokeEmpCharge( 1, there, 2500 );	// caster 1's ring is on screen
+		frame();
+		CHECK( entityCount == EMP_RING_STEPS && lightCount == 1 );
+		CHECK( entities[0].origin[0] < 0 );
+		CG_InvokeEmpCancel( 0 );	// caster 0 dies; that ring is not on screen
+		frame();
+		CHECK( entityCount == EMP_RING_STEPS && lightCount == 1 );
+		CG_InvokeEmpCancel( 1 );
 		frame();
 		CHECK( !entityCount && !lightCount );
 	}

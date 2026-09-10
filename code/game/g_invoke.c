@@ -164,6 +164,25 @@ static void G_InvokeDropGrantedWeapons( gentity_t *ent, invokeState_t *st ) {
 
 /*
 ==============
+G_InvokeCancelPendingEmp
+
+A charge that will never land (the caster died or left the game) must be
+taken back from every client that is drawing its ring. The cancel names
+the caster so a client showing someone else's charge keeps that tell.
+==============
+*/
+void G_InvokeCancelPendingEmp( gentity_t *ent ) {
+	invokeState_t	*st = G_InvokeState( ent );
+
+	if ( !st->empTime ) {
+		return;
+	}
+	st->empTime = 0;
+	trap_SendServerCommand( -1, va( "invempcancel %i\n", (int)( ent - g_entities ) ) );
+}
+
+/*
+==============
 G_InvokeReset
 
 Called from ClientSpawn and PlayerDie so a fresh life starts with empty
@@ -185,12 +204,8 @@ void G_InvokeReset( gentity_t *ent ) {
 	st->sunstrikeTime = 0;
 	VectorClear( st->sunstrikeOrigin );
 	// a dead caster's pending EMP dies with the life, like Sunstrike:
-	// otherwise the burst lands on the respawned player's behalf. Take the
-	// charge ring down too: clients draw it until told otherwise.
-	if ( st->empTime ) {
-		trap_SendServerCommand( -1, "invempcancel\n" );
-		st->empTime = 0;
-	}
+	// otherwise the burst lands on the respawned player's behalf
+	G_InvokeCancelPendingEmp( ent );
 	VectorClear( st->empOrigin );
 	st->lastNoManaCp = 0;
 	st->disarmedUntil = 0;

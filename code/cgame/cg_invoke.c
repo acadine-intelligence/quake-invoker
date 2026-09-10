@@ -45,6 +45,7 @@ void CG_ResetInvokeEffects( void ) {
 	memset( cg.invokeCastTime, 0, sizeof( cg.invokeCastTime ) );
 	cg.invokeEmpStartTime = 0;
 	cg.invokeEmpEndTime = 0;
+	cg.invokeEmpCaster = 0;
 	cg.invokeDeafenStartTime = 0;
 	cg.invokeDeafenEndTime = 0;
 	cg.invokeDisarmStartTime = 0;
@@ -104,18 +105,26 @@ void CG_InvokeStrikeBeam( vec3_t start, vec3_t end ) {
 
 // The server announces each EMP charge with "invemp": where the burst sits
 // and how long the charge runs. The client draws the ring from cg state.
-void CG_InvokeEmpCharge( vec3_t origin, int duration ) {
+void CG_InvokeEmpCharge( int caster, vec3_t origin, int duration ) {
 	if ( duration <= 0 ) {
 		return;
 	}
 	VectorCopy( origin, cg.invokeEmpOrigin );
 	cg.invokeEmpStartTime = cg.time;
 	cg.invokeEmpEndTime = cg.time + duration;
+	cg.invokeEmpCaster = caster;
 }
 
-void CG_InvokeEmpCancel( void ) {
+// A caster's charge is retracted (death, disconnect). Only take the ring
+// down when it is the one on screen: another caster's charge may be the
+// one drawn here, and its dodge cue must survive.
+void CG_InvokeEmpCancel( int caster ) {
+	if ( caster != cg.invokeEmpCaster ) {
+		return;
+	}
 	cg.invokeEmpStartTime = 0;
 	cg.invokeEmpEndTime = 0;
+	cg.invokeEmpCaster = 0;
 }
 
 // The burst hit this player: weapons are silent for the duration. The HUD

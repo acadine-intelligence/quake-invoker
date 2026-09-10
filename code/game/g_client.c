@@ -1272,6 +1272,10 @@ void ClientDisconnect( int clientNum ) {
 		return;
 	}
 
+	// a charge still queued would keep every client drawing its ring for
+	// a burst that will never land
+	G_InvokeCancelPendingEmp( ent );
+
 	// stop any following clients
 	for ( i = 0 ; i < level.maxclients ; i++ ) {
 		if ( level.clients[i].sess.sessionTeam == TEAM_SPECTATOR

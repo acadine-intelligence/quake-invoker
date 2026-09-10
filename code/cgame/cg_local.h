@@ -527,6 +527,7 @@ typedef struct {
 	int			invokeEmpStartTime;	// local: EMP charge window from "invemp"
 	int			invokeEmpEndTime;
 	vec3_t		invokeEmpOrigin;
+	int			invokeEmpCaster;	// entity number whose charge is on screen
 	int			invokeDeafenStartTime;	// local: Deafening Blast burst window
 	int			invokeDeafenEndTime;
 	vec3_t		invokeDeafenOrigin;
@@ -1317,11 +1318,11 @@ void CG_InvokeSpellCast( int hand, int spell );
 #define EMP_RING_STEPS 24		// sprites that draw the EMP charge ring
 #define DEAFEN_BURST_MSEC 700	// lifetime of the deafening blast rings
 #define TORNADO_SPRITES 16		// sprites in the tornado column
-void CG_InvokeEmpCharge( vec3_t origin, int duration );
+void CG_InvokeEmpCharge( int caster, vec3_t origin, int duration );
 
-// The charge was retracted (the caster died before the burst): clear the
-// window so CG_AddInvokeEffects stops drawing the ring immediately.
-void CG_InvokeEmpCancel( void );
+// The charge was retracted (the caster died or left the game): clear the
+// window when the ring on screen is that caster's.
+void CG_InvokeEmpCancel( int caster );
 void CG_InvokeDeafenBurst( vec3_t origin );
 void CG_InvokeDisarm( int duration );
 float CG_InvokeDisarmFraction( void );

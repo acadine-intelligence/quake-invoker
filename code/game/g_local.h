@@ -431,6 +431,7 @@ void StopFollowing( gentity_t *ent );
 // g_invoke.c (Quake Invoker)
 //
 void G_InvokeReset( gentity_t *ent );
+void G_InvokeCancelPendingEmp( gentity_t *ent );
 void Cmd_Orb_f( gentity_t *ent );
 void Cmd_Invoke_f( gentity_t *ent );
 void Cmd_InvokeSwap_f( gentity_t *ent );
