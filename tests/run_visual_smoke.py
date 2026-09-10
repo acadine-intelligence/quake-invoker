@@ -10,11 +10,62 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import struct
 import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE = ROOT / "build/Release"
+
+
+def load_tga(path):
+    """Return (width, height, pixels) for a 24-bit type 2 or type 10 TGA."""
+    data = path.read_bytes()
+    idlen, _cmap, imgtype = data[0], data[1], data[2]
+    width, height, bpp, _desc = struct.unpack_from("<HHBB", data, 12)
+    assert imgtype in (2, 10) and bpp == 24, "unsupported TGA"
+    pos = 18 + idlen
+    total = width * height
+    pixels = bytearray(total * 3)
+    if imgtype == 2:
+        pixels[:] = data[pos:pos + total * 3]
+    else:
+        i = 0
+        while i < total:
+            n = data[pos]
+            pos += 1
+            if n & 0x80:
+                b, g, r = data[pos:pos + 3]
+                pos += 3
+                for _ in range(n & 0x7F):
+                    pixels[i * 3:i * 3 + 3] = bytes((b, g, r))
+                    i += 1
+            else:
+                for _ in range(n & 0x7F):
+                    b, g, r = data[pos:pos + 3]
+                    pos += 3
+                    pixels[i * 3:i * 3 + 3] = bytes((b, g, r))
+                    i += 1
+    return width, height, pixels
+
+
+def assert_menu_fits(path):
+    """The manual page draws light text on the dark menu backdrop. Fail when
+    any text pixel reaches the outer 8 pixels of the frame, which is what a
+    clipped or over-wide line looks like."""
+    width, height, pixels = load_tga(path)
+    xmin, xmax, hits = width, -1, 0
+    for y in range(height):
+        row = (height - 1 - y) * width * 3
+        for x in range(width):
+            o = row + x * 3
+            if pixels[o] > 60 or pixels[o + 1] > 60 or pixels[o + 2] > 60:
+                hits += 1
+                xmin = min(xmin, x)
+                xmax = max(xmax, x)
+    assert hits > 500, f"Menu page looks blank: {path}"
+    assert xmin >= 8 and xmax <= width - 8, (
+        f"Menu text reaches the frame edge (x {xmin}..{xmax} of {width}): {path}")
 
 
 def main():
@@ -59,10 +110,10 @@ def main():
                      "invoked Lightning Gun (WWQ)", "Ice Wall: not castable yet",
                      "invoked Ghost Walk (QQW)", "cast Ghost Walk (-25 mana)",
                      "invoked Sunstrike (EEE)", "cast Sunstrike (-45 mana)",
-                     "sunstrike impact"):
+                     "sunstrike impact", "Invoker manual opened"):
         assert expected in console, f"Missing {expected!r} in {mod}"
     for error in ("unknown cmd orb", "unknown cmd invoke", "unknown cmd invswap",
-                  "VM_Abort", "ERROR:",
+                  "VM_Abort", "ERROR:", "Unknown command",
                   "May not switch teams"):
         assert error not in console, f"Unexpected {error!r} in {mod}"
     for combo, shot in (("Rocket Launcher (WQW)", "rocket_cast"),
@@ -73,13 +124,17 @@ def main():
             f"Wrote screenshots/{shot}.tga"), "Screenshot preceded server confirmation"
     assert console.index("sunstrike impact") < console.index(
         "Wrote screenshots/sunstrike_after.tga"), "Strike impact missing before final shot"
+    assert console.index("Invoker manual opened") < console.index(
+        "Wrote screenshots/invoker_manual.tga"), "Manual opened after its screenshot"
+    assert_menu_fits(mod / "screenshots/invoker_manual.tga")
     names = ("empty", "colors", "rocket_cast", "swapped_left", "rocket_ready", "lightning_cast",
              "dual_before", "left_fired", "right_firing", "both_after", "spell_attempt",
              "ghost_equipped", "ghost_cast",
              "sun_g1", "sun_g2", "sun_g3", "sun_g4", "sun_g5", "sun_g6",
              "sun_g7", "sun_g8", "sun_g9", "sun_g10", "sun_g11", "sun_g12",
              "sunstrike_after",
-             "effects_off", "spectator", "respawn")
+             "effects_off", "spectator", "respawn", "ingame_menu", "invoker_manual",
+             "back_to_game")
     screenshots = []
     for name in names:
         image = mod / f"screenshots/{name}.tga"
