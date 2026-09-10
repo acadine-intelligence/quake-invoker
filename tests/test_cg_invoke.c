@@ -448,6 +448,51 @@ int main( void ) {
 		CG_InvokeBlastMissile( &cent );
 		CHECK( entityCount == 4 && lightCount == 1 );
 	}
+
+	// the slowed window drains, draws, and clears like its siblings
+	{
+		CG_ResetInvokeEffects();
+		CHECK( CG_InvokeSlowFraction() == 0.0f );
+		CG_InvokeSlow( 600 );
+		CHECK( CG_InvokeSlowFraction() > 0.9f );
+		frame();
+		CHECK( strstr( hudText, "SLOWED" ) != NULL );
+		cg.time += 300;
+		CHECK( CG_InvokeSlowFraction() > 0.4f && CG_InvokeSlowFraction() < 0.6f );
+		cg.time += 301;
+		frame();
+		CHECK( CG_InvokeSlowFraction() == 0.0f );
+		CHECK( strstr( hudText, "SLOWED" ) == NULL );
+
+		// the reset path must clear a live slow, not just a fresh one
+		CG_InvokeSlow( 1500 );
+		CHECK( cg.invokeSlowEndTime > cg.time );
+		CG_ResetInvokeEffects();
+		CHECK( cg.invokeSlowEndTime == 0 && CG_InvokeSlowFraction() == 0.0f );
+
+		// every notice refreshes the window: a later one outlives the first
+		CG_InvokeSlow( 600 );
+		cg.time += 400;
+		CG_InvokeSlow( 600 );
+		cg.time += 400;
+		CHECK( CG_InvokeSlowFraction() > 0.0f );
+	}
+
+	// the ice wall field draws its whole ring from the entity marker
+	{
+		centity_t cent;
+
+		memset( &cent, 0, sizeof( cent ) );
+		cent.lerpOrigin[0] = 208;
+		cent.lerpOrigin[1] = -32;
+		cent.lerpOrigin[2] = 24;
+		CG_ResetInvokeEffects();
+		CG_InvokeIceField( &cent );
+		CHECK( entityCount == ICE_FIELD_OUTER_STEPS + ICE_FIELD_INNER_STEPS
+			&& lightCount == 1 );
+		CHECK( entities[0].reType == RT_SPRITE && entities[0].radius > 0 );
+		CHECK( entities[0].origin[0] != entities[1].origin[0] );
+	}
 	cg.snap = NULL;
 	frame();
 	CHECK( !entityCount && !hudCount );

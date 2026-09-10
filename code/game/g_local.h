@@ -434,6 +434,7 @@ void G_InvokeReset( gentity_t *ent );
 void G_InvokeCancelPendingEmp( gentity_t *ent );
 void G_InvokeDamageTaken( gentity_t *targ, gentity_t *attacker, vec3_t dir, int mod );
 qboolean G_InvokeClientFrozen( gentity_t *ent );
+qboolean G_InvokeClientSlowed( gentity_t *ent );
 void Cmd_Orb_f( gentity_t *ent );
 void Cmd_Invoke_f( gentity_t *ent );
 void Cmd_InvokeSwap_f( gentity_t *ent );

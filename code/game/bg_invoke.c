@@ -33,7 +33,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // Ordered recipe table: the exact sequence of the three held orbs
 // (oldest first) selects the invocation. Ten classic spells, nine stock
 // weapons, one portal pair, seven reserved slots. Weapons are castable;
-// Ghost Walk and Sunstrike are castable; the remaining spells and the
+// eight of the ten classic spells cast today; the remaining two and the
 // portal report "not castable yet" until their own passes land. Mapping
 // rationale: docs/design/04-ordered-spells.md.
 const invocation_t bg_invocations[] = {
@@ -132,6 +132,30 @@ qboolean BG_InvokeChillCanTrigger( const chillState_t *chill, int now,
 void BG_InvokeChillTriggered( chillState_t *chill, int now ) {
 	chill->nextTrigger = now + COLD_SNAP_TRIGGER_MS;
 	chill->freezeUntil = now + COLD_SNAP_FREEZE_MS;
+}
+
+/*
+==============
+BG_InvokeSlowClear / Refresh / Active
+
+Ice Wall's slow rules, kept here so the host tests and the server run the
+same code. Every field covering a player refreshes the same stamp, so the
+slow is a single window no matter how many fields overlap.
+==============
+*/
+void BG_InvokeSlowClear( slowState_t *slow ) {
+	slow->until = 0;
+}
+
+void BG_InvokeSlowRefresh( slowState_t *slow, int now ) {
+	slow->until = now + ICE_WALL_SLOW_GRACE_MS;
+}
+
+qboolean BG_InvokeSlowActive( const slowState_t *slow, int now ) {
+	if ( !slow->until || now >= slow->until ) {
+		return qfalse;
+	}
+	return qtrue;
 }
 
 /*

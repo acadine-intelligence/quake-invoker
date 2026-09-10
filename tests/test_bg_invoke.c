@@ -299,6 +299,31 @@ int main( void ) {
 			"a cleared debuff cannot trigger" );
 	}
 
+	// ice wall: the slow window refreshes without stacking, so any number
+	// of overlapping fields is still one slow
+	{
+		slowState_t slow;
+
+		memset( &slow, 0, sizeof( slow ) );
+		CHECK( !BG_InvokeSlowActive( &slow, 1000 ), "no field, no slow" );
+		BG_InvokeSlowRefresh( &slow, 1000 );
+		CHECK( BG_InvokeSlowActive( &slow, 1000 ), "a field starts the slow" );
+		CHECK( slow.until == 1000 + ICE_WALL_SLOW_GRACE_MS,
+			"the refresh sets the grace window" );
+		BG_InvokeSlowRefresh( &slow, 1000 );
+		CHECK( slow.until == 1000 + ICE_WALL_SLOW_GRACE_MS,
+			"a second field the same tick cannot extend it further" );
+		CHECK( BG_InvokeSlowActive( &slow, 1000 + ICE_WALL_SLOW_GRACE_MS - 1 ),
+			"the slow holds to the end of its window" );
+		CHECK( !BG_InvokeSlowActive( &slow, 1000 + ICE_WALL_SLOW_GRACE_MS ),
+			"the slow expires on its own" );
+		BG_InvokeSlowRefresh( &slow, 1200 );
+		CHECK( slow.until == 1200 + ICE_WALL_SLOW_GRACE_MS,
+			"a later refresh moves the window, never multiplies it" );
+		BG_InvokeSlowClear( &slow );
+		CHECK( !BG_InvokeSlowActive( &slow, 1300 ), "a cleared slow is gone" );
+	}
+
 	// every classic spell recipe maps to its definition, and no other
 	// recipe carries a spell ID
 	{

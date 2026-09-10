@@ -33,8 +33,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // path, invoked spells through STAT_INVOKE_SPELLS, and mana through
 // STAT_INVOKE_MANA. Castable spells: Ghost Walk (invisibility for 5 s),
 // Sunstrike (aimed strike after 1.75 s), EMP (charged burst after 2.5 s),
-// Chaos Meteor, Tornado (travelling vortex) and Deafening Blast (a shove
-// that disarms weapon fire).
+// Chaos Meteor, Tornado (travelling vortex), Deafening Blast (a shove
+// that disarms weapon fire), Cold Snap (a chilling mark) and Ice Wall
+// (a slowing field).
 
 #include "g_local.h"
 #include "bg_invoke.h"
@@ -66,6 +67,17 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // debuff rules themselves live in bg_invoke.c so host tests share them.
 #define COLD_SNAP_RANGE		1000
 #define COLD_SNAP_DAMAGE	15
+// Ice Wall: a placed field. Everyone inside, except the caster, is slowed
+// while they stand in it and takes periodic chip damage. The slow rules
+// themselves live in bg_invoke.c so host tests share them.
+#define ICE_WALL_RANGE		600
+#define ICE_WALL_RADIUS		170
+#define ICE_WALL_LIFE_MS	6000
+#define ICE_WALL_TICK_MS	100
+#define ICE_WALL_DAMAGE_INTERVAL_MS	500
+#define ICE_WALL_DAMAGE		8
+#define ICE_WALL_SLOW_NOTICE_MS	600
+#define ICE_WALL_MAX_FIELDS	8
 
 typedef struct {
 	int		orbSlots[INVOKE_SLOTS];	// orbType_t values, oldest first
@@ -79,6 +91,7 @@ typedef struct {
 	int		lastNoManaCp;			// level.time of the last mana notice
 	int		disarmedUntil;			// weapon fire stays silent until this time
 	chillState_t	chill;			// Cold Snap debuff on this client
+	slowState_t		slow;			// Ice Wall slow on this client
 } invokeState_t;
 
 static invokeState_t	g_invoke[MAX_CLIENTS];
@@ -210,6 +223,7 @@ void G_InvokeReset( gentity_t *ent ) {
 	st->sunstrikeTime = 0;
 	VectorClear( st->sunstrikeOrigin );
 	BG_InvokeChillClear( &st->chill );
+	BG_InvokeSlowClear( &st->slow );
 	// a dead caster's pending EMP dies with the life, like Sunstrike:
 	// otherwise the burst lands on the respawned player's behalf
 	G_InvokeCancelPendingEmp( ent );
@@ -264,6 +278,7 @@ of granting something wrong.
 static qboolean G_InvokeSpellCastable( int spell ) {
 	switch ( spell ) {
 	case SPELL_COLD_SNAP:
+	case SPELL_ICE_WALL:
 	case SPELL_GHOST_WALK:
 	case SPELL_SUNSTRIKE:
 	case SPELL_EMP:
@@ -367,12 +382,15 @@ void Cmd_InvokeSwap_f( gentity_t *ent ) {
 	G_InvokeSendHands( ent );
 }
 
+static void G_InvokePlaceIceWall( gentity_t *ent, vec3_t aimPoint );
+
 /*
 ==============
 G_InvokeCastSpell
 
 Runs a successful cast. Ghost Walk turns the caster invisible for 5 s;
-Sunstrike aims now and lands 1.75 s later, so the strike is dodgeable.
+Sunstrike aims now and lands 1.75 s later, so the strike is dodgeable;
+Ice Wall places a slow field on the ground ahead.
 ==============
 */
 static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int hand,
@@ -407,6 +425,21 @@ static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int hand,
 					va( "print \"cold snap on %s\\n\"", targ->client->pers.netname ) );
 			}
 		}
+		break;
+	}
+	case SPELL_ICE_WALL:
+	{
+		vec3_t	place;
+
+		VectorCopy( ps->origin, start );
+		start[2] += ps->viewheight;
+		AngleVectors( ps->viewangles, forward, NULL, NULL );
+		VectorMA( start, ICE_WALL_RANGE, forward, end );
+		// world geometry only, like Sunstrike: the field lands on ground
+		// ahead even when an enemy stands in the way
+		trap_Trace( &tr, start, NULL, NULL, end, ent->s.number, CONTENTS_SOLID );
+		VectorCopy( tr.endpos, place );
+		G_InvokePlaceIceWall( ent, place );
 		break;
 	}
 	case SPELL_GHOST_WALK:
@@ -520,6 +553,22 @@ qboolean G_InvokeClientFrozen( gentity_t *ent ) {
 		return qfalse;
 	}
 	return G_InvokeState( ent )->chill.freezeUntil > level.time;
+}
+
+/*
+==============
+G_InvokeClientSlowed
+
+True while an Ice Wall field holds this client. Like the freeze, this is
+consulted where g_active.c sets movement speed each frame, so the slow
+covers the same prediction values the client sees.
+==============
+*/
+qboolean G_InvokeClientSlowed( gentity_t *ent ) {
+	if ( !ent || !ent->client ) {
+		return qfalse;
+	}
+	return BG_InvokeSlowActive( &G_InvokeState( ent )->slow, level.time );
 }
 
 /*
@@ -724,6 +773,112 @@ void G_InvokeTornadoThink( gentity_t *self ) {
 		}
 		G_FreeEntity( self );
 	}
+}
+
+/*
+==============
+G_InvokeIceWallThink
+
+Per-tick field logic: everyone inside, except the caster, is slowed; on
+the slower damage cadence they also take chip damage and get the slow
+notice. A late think skips damage ticks instead of batching them.
+==============
+*/
+static void G_InvokeIceWallThink( gentity_t *self ) {
+	gentity_t	*targ;
+	vec3_t		dir, diff;
+	int			i, tick;
+
+	if ( !self->inuse || self->s.eType != ET_GENERAL ) {
+		return;
+	}
+	self->nextthink = level.time + ICE_WALL_TICK_MS;
+	if ( level.time >= self->s.time + ICE_WALL_LIFE_MS ) {
+		G_FreeEntity( self );
+		return;
+	}
+	tick = ( level.time - self->s.time ) / ICE_WALL_DAMAGE_INTERVAL_MS;
+	for ( i = 0; i < level.maxclients; i++ ) {
+		targ = &g_entities[i];
+		if ( !targ->inuse || !targ->client || targ == self->parent
+			|| targ->health <= 0
+			|| targ->client->pers.connected != CON_CONNECTED
+			|| targ->client->ps.pm_type == PM_SPECTATOR ) {
+			continue;
+		}
+		VectorSubtract( targ->client->ps.origin, self->r.currentOrigin, diff );
+		if ( VectorLengthSquared( diff ) > (float)ICE_WALL_RADIUS * ICE_WALL_RADIUS ) {
+			continue;
+		}
+		// every field refreshes the same window, so any number of
+		// overlapping fields is still one slow
+		BG_InvokeSlowRefresh( &G_InvokeState( targ )->slow, level.time );
+		if ( tick && tick != self->count ) {
+			VectorCopy( diff, dir );
+			VectorNormalize( dir );
+			// tell the victim, so the drag has a visible source
+			trap_SendServerCommand( targ - g_entities,
+				va( "invslow %i\n", ICE_WALL_SLOW_NOTICE_MS ) );
+			G_Damage( targ, self, self->parent, dir, targ->client->ps.origin,
+				ICE_WALL_DAMAGE, DAMAGE_NO_KNOCKBACK, MOD_ICE_WALL );
+		}
+	}
+	self->count = tick;
+}
+
+/*
+==============
+G_InvokePlaceIceWall
+
+Drops the field onto the floor under the aim point, then spawns the
+field entity. Clients draw the ring from the entity's s.generic1 marker.
+The population is bounded: the oldest field is removed at the cap, so
+rapid casts cannot grow unbounded entity counts.
+==============
+*/
+static void G_InvokePlaceIceWall( gentity_t *ent, vec3_t aimPoint ) {
+	gentity_t	*field, *oldest = NULL;
+	vec3_t		place, down;
+	trace_t		tr;
+	int			i, count = 0;
+
+	// settle to the floor so the field lies on the ground even when the
+	// aim ray hit a wall above it
+	VectorCopy( aimPoint, place );
+	place[2] += 40;
+	VectorCopy( place, down );
+	down[2] -= 200;
+	trap_Trace( &tr, place, NULL, NULL, down, ent->s.number, CONTENTS_SOLID );
+	if ( tr.fraction < 1.0f ) {
+		VectorCopy( tr.endpos, place );
+		place[2] += 2;
+	}
+
+	for ( i = 0; i < MAX_GENTITIES; i++ ) {
+		if ( g_entities[i].inuse && g_entities[i].classname
+			&& !strcmp( g_entities[i].classname, "invoke_icewall" ) ) {
+			count++;
+			if ( !oldest || g_entities[i].s.time < oldest->s.time ) {
+				oldest = &g_entities[i];
+			}
+		}
+	}
+	if ( count >= ICE_WALL_MAX_FIELDS && oldest ) {
+		G_FreeEntity( oldest );
+	}
+
+	field = G_Spawn();
+	field->classname = "invoke_icewall";
+	field->nextthink = level.time + ICE_WALL_TICK_MS;
+	field->think = G_InvokeIceWallThink;
+	field->s.eType = ET_GENERAL;
+	field->s.generic1 = INVOKE_FX_ICEWALL;	// cgame draw marker
+	field->parent = ent;
+	field->r.ownerNum = ent->s.number;
+	field->s.time = level.time;			// birth: the field has a lifetime
+	field->count = 0;					// last applied damage tick
+	G_SetOrigin( field, place );
+	trap_LinkEntity( field );
 }
 
 /*

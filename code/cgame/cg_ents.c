@@ -1020,6 +1020,11 @@ static void CG_AddCEntity( centity_t *cent ) {
 	case ET_TELEPORT_TRIGGER:
 		break;
 	case ET_GENERAL:
+		// invoke ice wall fields carry their own marker
+		if ( cent->currentState.generic1 == INVOKE_FX_ICEWALL ) {
+			CG_InvokeIceField( cent );
+			break;
+		}
 		CG_General( cent );
 		break;
 	case ET_PLAYER:

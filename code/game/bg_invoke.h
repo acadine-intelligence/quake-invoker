@@ -45,6 +45,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define INVOKE_FX_NONE			0
 #define INVOKE_FX_TORNADO		1
 #define INVOKE_FX_DEAFENING		2
+#define INVOKE_FX_ICEWALL		3
 
 #define INVOKE_MOVE_W		0x01
 #define INVOKE_MOVE_A		0x02
@@ -107,6 +108,21 @@ void BG_InvokeChillApply( chillState_t *chill, int now );
 qboolean BG_InvokeChillCanTrigger( const chillState_t *chill, int now,
 	qboolean ownDamage );
 void BG_InvokeChillTriggered( chillState_t *chill, int now );
+
+// Ice Wall slow state, shared so the host tests exercise the same rules.
+// Any number of fields may cover one player; each refresh of `until` is a
+// replacement, never an addition, so overlapping fields cannot multiply
+// the slow. The movement scale lives with the server (G_InvokeClientSlowed).
+typedef struct {
+	int	until;			// level.time the slow holds until (0 = none)
+} slowState_t;
+
+#define ICE_WALL_SLOW_GRACE_MS	400
+#define ICE_WALL_SLOW_SCALE		0.6f	// movement multiplier while slowed
+
+void BG_InvokeSlowClear( slowState_t *slow );
+void BG_InvokeSlowRefresh( slowState_t *slow, int now );
+qboolean BG_InvokeSlowActive( const slowState_t *slow, int now );
 
 // Server-authoritative hand assignment and per-item timing. nextFireTime is
 // indexed by weapon so duplicate weapons in both hands necessarily share it;

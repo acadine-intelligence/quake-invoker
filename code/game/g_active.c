@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 
 #include "g_local.h"
+#include "bg_invoke.h"
 
 
 /*
@@ -857,6 +858,11 @@ void ClientThink_real( gentity_t *ent ) {
 	// think after the Pmove.
 	if ( G_InvokeClientFrozen( ent ) ) {
 		client->ps.speed = 0;
+	}
+	// an Ice Wall field damps movement instead of stopping it. Overlapping
+	// fields refresh one slow window, so this stays a single multiply.
+	else if ( G_InvokeClientSlowed( ent ) ) {
+		client->ps.speed *= ICE_WALL_SLOW_SCALE;
 	}
 
 	// Let go of the hook if we aren't firing

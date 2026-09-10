@@ -536,6 +536,8 @@ typedef struct {
 	int			invokeDisarmEndTime;
 	int			invokeChillStartTime;	// local: this player's Cold Snap debuff
 	int			invokeChillEndTime;
+	int			invokeSlowStartTime;	// local: this player's Ice Wall slow
+	int			invokeSlowEndTime;
 
 	// auto rotating items
 	vec3_t		autoAngles;
@@ -1321,6 +1323,8 @@ void CG_InvokeSpellCast( int hand, int spell );
 #define EMP_RING_STEPS 24		// sprites that draw the EMP charge ring
 #define DEAFEN_BURST_MSEC 700	// lifetime of the deafening blast rings
 #define TORNADO_SPRITES 16		// sprites in the tornado column
+#define ICE_FIELD_OUTER_STEPS 20	// sprites around an ice wall field
+#define ICE_FIELD_INNER_STEPS 10	// inner ring of the same field
 void CG_InvokeEmpCharge( int caster, vec3_t origin, int duration );
 
 // The charge was retracted (the caster died or left the game): clear the
@@ -1331,6 +1335,9 @@ void CG_InvokeDisarm( int duration );
 float CG_InvokeDisarmFraction( void );
 void CG_InvokeChill( int duration );
 float CG_InvokeChillFraction( void );
+void CG_InvokeSlow( int duration );
+float CG_InvokeSlowFraction( void );
+void CG_InvokeIceField( centity_t *cent );
 void CG_InvokeTornado( centity_t *cent );
 void CG_InvokeBlastMissile( centity_t *cent );
 float CG_InvokeReadyFraction( int now, int castTime, int cooldown );

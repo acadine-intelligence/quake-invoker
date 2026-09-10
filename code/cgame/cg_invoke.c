@@ -52,6 +52,8 @@ void CG_ResetInvokeEffects( void ) {
 	cg.invokeDisarmEndTime = 0;
 	cg.invokeChillStartTime = 0;
 	cg.invokeChillEndTime = 0;
+	cg.invokeSlowStartTime = 0;
+	cg.invokeSlowEndTime = 0;
 	cg.invokeStrikeEndTime = 0;
 	// Physical held keys survive gameplay/visual resets until key-up.
 	cg.orbChangeTime = 0;
@@ -174,6 +176,30 @@ float CG_InvokeChillFraction( void ) {
 		return 0.0f;
 	}
 	return ( cg.invokeChillEndTime - cg.time ) / (float)span;
+}
+
+// An Ice Wall field holds this player: the drag is felt directly, and the
+// bar names the source. Each notice refreshes the window; standing in the
+// field keeps it alive, leaving lets it drain.
+void CG_InvokeSlow( int duration ) {
+	if ( duration <= 0 ) {
+		return;
+	}
+	cg.invokeSlowStartTime = cg.time;
+	cg.invokeSlowEndTime = cg.time + duration;
+}
+
+float CG_InvokeSlowFraction( void ) {
+	int span;
+
+	if ( cg.invokeSlowEndTime <= cg.time ) {
+		return 0.0f;
+	}
+	span = cg.invokeSlowEndTime - cg.invokeSlowStartTime;
+	if ( span <= 0 ) {
+		return 0.0f;
+	}
+	return ( cg.invokeSlowEndTime - cg.time ) / (float)span;
 }
 
 static void CG_InvokeFlashStart( void ) {
@@ -392,6 +418,47 @@ void CG_InvokeBlastMissile( centity_t *cent ) {
 			i ? 0.28f - 0.06f * i : 0.85f, 0 );
 	}
 	trap_R_AddLightToScene( cent->lerpOrigin, 150, col[0], col[1], col[2] );
+}
+
+// An Ice Wall field lies on the ground; the ring is drawn from the field
+// entity itself, so any number of fields draws at once and none outlives
+// its server-side lifetime. Bounded: 20 + 10 sprites per field.
+void CG_InvokeIceField( centity_t *cent ) {
+	const vec4_t col = { 0.55f, 0.85f, 1.0f, 1.0f };
+	float bloom, pulse, phase;
+	int i;
+	vec3_t p;
+
+	// a short bloom at spawn, clamped: any clock skew just skips it
+	bloom = 1.0f;
+	if ( cent->currentState.time && cg.time > cent->currentState.time ) {
+		bloom = ( cg.time - cent->currentState.time ) / 300.0f;
+		if ( bloom > 1.0f ) {
+			bloom = 1.0f;
+		}
+	}
+	if ( bloom < 0.3f ) {
+		bloom = 0.3f;
+	}
+	pulse = 0.5f + 0.15f * sin( cg.time * 0.004f );
+	phase = ( cg.time % 4000 ) * ( 2.0f * M_PI / 4000.0f );
+	for ( i = 0; i < ICE_FIELD_OUTER_STEPS; i++ ) {
+		float a = phase * 0.25f + i * ( 2.0f * M_PI / ICE_FIELD_OUTER_STEPS );
+
+		p[0] = cent->lerpOrigin[0] + 160 * bloom * cos( a );
+		p[1] = cent->lerpOrigin[1] + 160 * bloom * sin( a );
+		p[2] = cent->lerpOrigin[2] + 3 + 2 * sin( phase + i );
+		CG_InvokeWorldSprite( p, i % 2 ? 5.0f : 7.0f, col, pulse * bloom, a * 180 / M_PI );
+	}
+	for ( i = 0; i < ICE_FIELD_INNER_STEPS; i++ ) {
+		float a = -phase * 0.5f + i * ( 2.0f * M_PI / ICE_FIELD_INNER_STEPS );
+
+		p[0] = cent->lerpOrigin[0] + 88 * bloom * cos( a );
+		p[1] = cent->lerpOrigin[1] + 88 * bloom * sin( a );
+		p[2] = cent->lerpOrigin[2] + 6;
+		CG_InvokeWorldSprite( p, 4.0f, col, pulse * 0.5f * bloom, a * 180 / M_PI );
+	}
+	trap_R_AddLightToScene( cent->lerpOrigin, 110, 0.45f, 0.7f, 1.0f );
 }
 
 // Camera-relative motes orbit below the crosshair. No game entities or
@@ -686,6 +753,18 @@ void CG_DrawOrbs( void ) {
 		CG_DrawStringExt( 299, 292, "CHILLED", chillCol, qtrue, qtrue, 6, 10, 0 );
 		CG_FillRect( 268, 305, 104, 5, chillBack );
 		CG_FillRect( 268, 305, 104 * left, 5, chillCol );
+	}
+
+	// slowed: an Ice Wall field holds THIS player. The drag is felt
+	// directly; the bar names the source while it lasts.
+	if ( cg.invokeSlowEndTime > cg.time ) {
+		const vec4_t slowCol = { 0.55f, 0.85f, 1.0f, 1.0f };
+		const vec4_t slowBack = { 0.09f, 0.13f, 0.21f, 0.90f };
+		float left = CG_InvokeSlowFraction();
+
+		CG_DrawStringExt( 302, 316, "SLOWED", slowCol, qtrue, qtrue, 6, 10, 0 );
+		CG_FillRect( 268, 329, 104, 5, slowBack );
+		CG_FillRect( 268, 329, 104 * left, 5, slowCol );
 	}
 	trap_R_SetColor( NULL );
 }

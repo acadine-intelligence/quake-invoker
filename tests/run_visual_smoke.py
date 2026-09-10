@@ -107,7 +107,7 @@ def main():
         raise SystemExit(f"Game exited {result.returncode}. Inspect {run / 'engine.log'}")
     console = (mod / "visual-console.txt").read_text(errors="replace")
     for expected in ("orbs: Q W E", "invoked Rocket Launcher (WQW)",
-                     "invoked Lightning Gun (WWQ)", "Ice Wall: not castable yet",
+                     "invoked Lightning Gun (WWQ)", "invoked Ice Wall (QQE)",
                      "invoked Ghost Walk (QQW)", "cast Ghost Walk (-25 mana)",
                      "invoked Sunstrike (EEE)", "cast Sunstrike (-45 mana)",
                      "sunstrike impact", "Invoker manual opened",
@@ -117,7 +117,8 @@ def main():
                      "tornado faded",
                      "invoked Deafening Blast (QWE)", "cast Deafening Blast (-45 mana)",
                      "deafening blast burst",
-                     "invoked Cold Snap (QQQ)", "cast Cold Snap (-35 mana)"):
+                     "invoked Cold Snap (QQQ)", "cast Cold Snap (-35 mana)",
+                     "cast Ice Wall (-40 mana)"):
         assert expected in console, f"Missing {expected!r} in {mod}"
     for error in ("unknown cmd orb", "unknown cmd invoke", "unknown cmd invswap",
                   "unknown cmd invcast", "unknown cmd invemp", "unhandled invoke spell",
@@ -132,7 +133,8 @@ def main():
                         ("Chaos Meteor (WEE)", "meteor_fly"),
                         ("Tornado (QWW)", "tornado_fly"),
                         ("Deafening Blast (QWE)", "deafen_fly"),
-                        ("Cold Snap (QQQ)", "coldsnap_cast")):
+                        ("Cold Snap (QQQ)", "coldsnap_cast"),
+                        ("Ice Wall (QQE)", "icewall_cast")):
         assert console.index("invoked " + combo) < console.index(
             f"Wrote screenshots/{shot}.tga"), "Screenshot preceded server confirmation"
     assert console.index("sunstrike impact") < console.index(
@@ -153,6 +155,7 @@ def main():
              "tornado_fly", "tornado_lift", "tornado_after",
              "deafen_fly", "deafen_burst", "deafen_after",
              "coldsnap_cast",
+             "icewall_cast", "icewall_field",
              "effects_off", "spectator", "respawn", "ingame_menu", "invoker_manual",
              "back_to_game")
     screenshots = []
