@@ -111,6 +111,11 @@ void CG_InvokeEmpCharge( vec3_t origin, int duration ) {
 	cg.invokeEmpEndTime = cg.time + duration;
 }
 
+void CG_InvokeEmpCancel( void ) {
+	cg.invokeEmpStartTime = 0;
+	cg.invokeEmpEndTime = 0;
+}
+
 static void CG_InvokeFlashStart( void ) {
 	memcpy( cg.invokedSlots, cg.orbSlots, sizeof( cg.invokedSlots ) );
 	cg.invokeEffectEndTime = cg.time + INVOKE_FLASH_MSEC;

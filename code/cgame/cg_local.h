@@ -1316,6 +1316,10 @@ void CG_InvokeSpellCast( int hand, int spell );
 #define DEAFEN_BURST_MSEC 700	// lifetime of the deafening blast rings
 #define TORNADO_SPRITES 16		// sprites in the tornado column
 void CG_InvokeEmpCharge( vec3_t origin, int duration );
+
+// The charge was retracted (the caster died before the burst): clear the
+// window so CG_AddInvokeEffects stops drawing the ring immediately.
+void CG_InvokeEmpCancel( void );
 void CG_InvokeDeafenBurst( vec3_t origin );
 void CG_InvokeTornado( centity_t *cent );
 void CG_InvokeBlastMissile( centity_t *cent );

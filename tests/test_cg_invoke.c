@@ -307,6 +307,19 @@ int main( void ) {
 		CHECK( !entityCount && !lightCount );
 	}
 
+	// a retracted charge stops drawing at once
+	{
+		vec3_t here = { 128, 0, 0 };
+
+		CG_ResetInvokeEffects();
+		CG_InvokeEmpCharge( here, 2500 );
+		frame();
+		CHECK( entityCount > 0 && lightCount == 1 );
+		CG_InvokeEmpCancel();
+		frame();
+		CHECK( !entityCount && !lightCount );
+	}
+
 	// the deafening blast rings draw from cg state until the wave fades
 	{
 		vec3_t here = { 96, 0, 0 };

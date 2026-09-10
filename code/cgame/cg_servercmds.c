@@ -1059,8 +1059,15 @@ static void CG_ServerCommand( void ) {
 			origin[2] = atof( CG_Argv(4) );
 			CG_InvokeEmpCharge( origin, atoi( CG_Argv(5) ) );
 		} else {
-			CG_Printf( "invemp: expected 6 arguments, got %i\n", trap_Argc() );
+			CG_Printf( "invemp: expected 5 args, got %i\n", trap_Argc() - 1 );
 		}
+		return;
+	}
+
+	// The server retracted a charge (the caster died): drop the ring now
+	// instead of drawing it until a burst time that will never arrive.
+	if ( !strcmp( cmd, "invempcancel" ) ) {
+		CG_InvokeEmpCancel();
 		return;
 	}
 

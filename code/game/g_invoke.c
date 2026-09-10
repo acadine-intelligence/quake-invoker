@@ -185,8 +185,12 @@ void G_InvokeReset( gentity_t *ent ) {
 	st->sunstrikeTime = 0;
 	VectorClear( st->sunstrikeOrigin );
 	// a dead caster's pending EMP dies with the life, like Sunstrike:
-	// otherwise the burst lands on the respawned player's behalf
-	st->empTime = 0;
+	// otherwise the burst lands on the respawned player's behalf. Take the
+	// charge ring down too: clients draw it until told otherwise.
+	if ( st->empTime ) {
+		trap_SendServerCommand( -1, "invempcancel\n" );
+		st->empTime = 0;
+	}
 	VectorClear( st->empOrigin );
 	st->lastNoManaCp = 0;
 	st->disarmedUntil = 0;
