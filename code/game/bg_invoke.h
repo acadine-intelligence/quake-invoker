@@ -88,13 +88,17 @@ const spellDef_t *BG_SpellDef( int spell );
 // indexed by weapon so duplicate weapons in both hands necessarily share it;
 // nextCastTime is indexed by spell the same way. mana is one pool for both
 // hands. A hand holds either a weapon (weapon[hand] != WP_NONE) or a spell
-// (spell[hand] != SPELL_NONE), never both.
+// (spell[hand] != SPELL_NONE), never both. grantedWeapons tracks what the
+// invoke system currently owns; grantedOnce remembers which weapons already
+// took their once-per-life ammo top-up, so a release plus re-invoke can
+// never generate ammunition.
 typedef struct {
 	int		weapon[INVOKE_HANDS];
 	int		spell[INVOKE_HANDS];
 	int		nextFireTime[WP_NUM_WEAPONS];
 	int		nextCastTime[SPELL_NUM];
 	unsigned int	grantedWeapons;
+	unsigned int	grantedOnce;
 	float	mana;
 } invokeHands_t;
 

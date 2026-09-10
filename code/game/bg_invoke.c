@@ -230,7 +230,7 @@ typedef char bg_invoke_spell_pack_fits[( SPELL_NUM <= 16 ) ? 1 : -1];
 // weapon unless the other hand still holds a copy. Starting weapons are
 // never removed.
 static void BG_InvokeReleaseWeapon( invokeHands_t *hands, int hand, int oldWeapon,
-	int ammo[WP_NUM_WEAPONS], int *weaponBits ) {
+	int *weaponBits ) {
 	unsigned int oldBit;
 
 	if ( oldWeapon <= WP_NONE || oldWeapon >= WP_NUM_WEAPONS
@@ -243,8 +243,9 @@ static void BG_InvokeReleaseWeapon( invokeHands_t *hands, int hand, int oldWeapo
 	}
 	oldBit = 1u << oldWeapon;
 	*weaponBits &= ~(int)oldBit;
-	ammo[oldWeapon] = 0;
 	hands->grantedWeapons &= ~oldBit;
+	// remaining ammo stays on the books: releasing and re-invoking a weapon
+	// must never generate ammunition
 }
 
 int BG_InvokeEquipHand( invokeHands_t *hands, int hand, int weapon,
@@ -258,17 +259,20 @@ int BG_InvokeEquipHand( invokeHands_t *hands, int hand, int weapon,
 	}
 	old = hands->weapon[hand];
 	if ( old != weapon ) {
-		BG_InvokeReleaseWeapon( hands, hand, old, ammo, weaponBits );
+		BG_InvokeReleaseWeapon( hands, hand, old, weaponBits );
 	}
 	bit = 1u << weapon;
-	if ( !( hands->grantedWeapons & bit ) ) {
-		*weaponBits |= (int)bit;
+	*weaponBits |= (int)bit;
+	hands->grantedWeapons |= bit;
+	if ( !( hands->grantedOnce & bit ) ) {
+		// the first invoke of this weapon in a life tops it up; later
+		// releases and re-invokes keep whatever ammo is left
 		if ( initialAmmo < 0 ) {
 			ammo[weapon] = -1;
 		} else if ( ammo[weapon] < initialAmmo ) {
 			ammo[weapon] = initialAmmo;
 		}
-		hands->grantedWeapons |= bit;
+		hands->grantedOnce |= bit;
 	}
 	hands->weapon[hand] = weapon;
 	hands->spell[hand] = SPELL_NONE;
@@ -283,7 +287,7 @@ int BG_InvokeEquipSpell( invokeHands_t *hands, int hand, int spell,
 		|| spell <= SPELL_NONE || spell >= SPELL_NUM ) {
 		return 0;
 	}
-	BG_InvokeReleaseWeapon( hands, hand, hands->weapon[hand], ammo, weaponBits );
+	BG_InvokeReleaseWeapon( hands, hand, hands->weapon[hand], weaponBits );
 	hands->weapon[hand] = WP_NONE;
 	hands->spell[hand] = spell;
 	return 1;

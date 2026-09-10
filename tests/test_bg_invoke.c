@@ -180,8 +180,21 @@ int main( void ) {
 		&& ( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) ) && ammo[WP_ROCKET_LAUNCHER] == 15,
 		"grant sets the weapon bit and starting ammo" );
 	CHECK( BG_InvokeEquipHand( &hands, INVOKE_HAND_RIGHT, WP_PLASMAGUN, 60, ammo, &weaponBits )
-		&& !( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) ) && ammo[WP_ROCKET_LAUNCHER] == 0,
-		"replacing a hand releases the old weapon" );
+		&& !( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) )
+		&& !( hands.grantedWeapons & ( 1u << WP_ROCKET_LAUNCHER ) )
+		&& ammo[WP_ROCKET_LAUNCHER] == 15,
+		"replacing a hand releases the old weapon and keeps its ammo" );
+	ammo[WP_ROCKET_LAUNCHER] = 3;
+	CHECK( BG_InvokeEquipHand( &hands, INVOKE_HAND_LEFT, WP_ROCKET_LAUNCHER, 15, ammo, &weaponBits )
+		&& ( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) )
+		&& ( hands.grantedWeapons & ( 1u << WP_ROCKET_LAUNCHER ) )
+		&& ammo[WP_ROCKET_LAUNCHER] == 3,
+		"re-invoking a released weapon never refills it in the same life" );
+	BG_InvokeHandsReset( &hands );
+	weaponBits = 0;
+	CHECK( BG_InvokeEquipHand( &hands, INVOKE_HAND_RIGHT, WP_ROCKET_LAUNCHER, 15, ammo, &weaponBits )
+		&& ammo[WP_ROCKET_LAUNCHER] == 15,
+		"a fresh life tops the weapon up again" );
 	CHECK( BG_InvokeEquipHand( &hands, INVOKE_HAND_LEFT, WP_SHOTGUN, 15, ammo, &weaponBits )
 		&& BG_InvokeEquipHand( &hands, INVOKE_HAND_RIGHT, WP_ROCKET_LAUNCHER, 15, ammo, &weaponBits )
 		&& ( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) )
@@ -219,8 +232,10 @@ int main( void ) {
 		&& hands.weapon[INVOKE_HAND_RIGHT] == WP_NONE
 		&& BG_InvokeHandSpell( &hands, INVOKE_HAND_RIGHT ) == SPELL_GHOST_WALK,
 		"a spell cast replaces the weapon in the hand" );
-	CHECK( !( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) ) && ammo[WP_ROCKET_LAUNCHER] == 0,
-		"the replaced weapon is released for good" );
+	CHECK( !( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) )
+		&& !( hands.grantedWeapons & ( 1u << WP_ROCKET_LAUNCHER ) )
+		&& ammo[WP_ROCKET_LAUNCHER] == 15,
+		"the replaced weapon leaves the hand and keeps its ammo" );
 	CHECK( BG_InvokePackedHands( &hands ) == 0
 		&& BG_InvokePackedSpells( &hands ) == ( SPELL_GHOST_WALK << 4 ),
 		"spells pack into their own hand stat" );
