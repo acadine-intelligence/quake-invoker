@@ -1071,6 +1071,16 @@ static void CG_ServerCommand( void ) {
 		return;
 	}
 
+	// Server-announced weapon disarm: this player took a Deafening Blast.
+	if ( !strcmp( cmd, "invdeafen" ) ) {
+		if ( trap_Argc() == 2 ) {
+			CG_InvokeDisarm( atoi( CG_Argv(1) ) );
+		} else {
+			CG_Printf( "invdeafen: expected 1 arg, got %i\n", trap_Argc() - 1 );
+		}
+		return;
+	}
+
 	if ( !strcmp( cmd, "print" ) ) {
 		CG_Printf( "%s", CG_Argv(1) );
 #ifdef MISSIONPACK

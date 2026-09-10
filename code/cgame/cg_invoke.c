@@ -47,6 +47,8 @@ void CG_ResetInvokeEffects( void ) {
 	cg.invokeEmpEndTime = 0;
 	cg.invokeDeafenStartTime = 0;
 	cg.invokeDeafenEndTime = 0;
+	cg.invokeDisarmStartTime = 0;
+	cg.invokeDisarmEndTime = 0;
 	cg.invokeStrikeEndTime = 0;
 	// Physical held keys survive gameplay/visual resets until key-up.
 	cg.orbChangeTime = 0;
@@ -114,6 +116,29 @@ void CG_InvokeEmpCharge( vec3_t origin, int duration ) {
 void CG_InvokeEmpCancel( void ) {
 	cg.invokeEmpStartTime = 0;
 	cg.invokeEmpEndTime = 0;
+}
+
+// The burst hit this player: weapons are silent for the duration. The HUD
+// shows the window; without it a dry trigger reads as a broken gun.
+void CG_InvokeDisarm( int duration ) {
+	if ( duration <= 0 ) {
+		return;
+	}
+	cg.invokeDisarmStartTime = cg.time;
+	cg.invokeDisarmEndTime = cg.time + duration;
+}
+
+float CG_InvokeDisarmFraction( void ) {
+	int span;
+
+	if ( cg.invokeDisarmEndTime <= cg.time ) {
+		return 0.0f;
+	}
+	span = cg.invokeDisarmEndTime - cg.invokeDisarmStartTime;
+	if ( span <= 0 ) {
+		return 0.0f;
+	}
+	return ( cg.invokeDisarmEndTime - cg.time ) / (float)span;
 }
 
 static void CG_InvokeFlashStart( void ) {
@@ -602,6 +627,18 @@ void CG_DrawOrbs( void ) {
 	if ( flash ) {
 		color[0] = 0.65f; color[1] = 0.80f; color[2] = 1.0f; color[3] = flash;
 		CG_FillRect( 16, 261, 186 * flash, 2, color );
+	}
+
+	// deafened: the burst hit THIS player. Warn under the crosshair with
+	// the time left on a bar; nothing else about the lockout is visible.
+	if ( cg.invokeDisarmEndTime > cg.time ) {
+		const vec4_t warnCol = { 0.98f, 0.62f, 0.20f, 1.0f };
+		const vec4_t warnBack = { 0.09f, 0.13f, 0.21f, 0.90f };
+		float left = CG_InvokeDisarmFraction();
+
+		CG_DrawStringExt( 268, 268, "WEAPONS DISABLED", warnCol, qtrue, qtrue, 6, 10, 0 );
+		CG_FillRect( 268, 281, 104, 5, warnBack );
+		CG_FillRect( 268, 281, 104 * left, 5, warnCol );
 	}
 	trap_R_SetColor( NULL );
 }

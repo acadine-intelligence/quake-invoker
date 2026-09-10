@@ -320,6 +320,18 @@ int main( void ) {
 		CHECK( !entityCount && !lightCount );
 	}
 
+	// the victim-facing disarm window drains and clears
+	{
+		CG_ResetInvokeEffects();
+		CHECK( CG_InvokeDisarmFraction() == 0.0f );
+		CG_InvokeDisarm( 3000 );
+		CHECK( CG_InvokeDisarmFraction() > 0.9f );
+		cg.time += 1500;
+		CHECK( CG_InvokeDisarmFraction() > 0.4f && CG_InvokeDisarmFraction() < 0.6f );
+		cg.time += 1600;
+		CHECK( CG_InvokeDisarmFraction() == 0.0f );
+	}
+
 	// the deafening blast rings draw from cg state until the wave fades
 	{
 		vec3_t here = { 96, 0, 0 };

@@ -530,6 +530,8 @@ typedef struct {
 	int			invokeDeafenStartTime;	// local: Deafening Blast burst window
 	int			invokeDeafenEndTime;
 	vec3_t		invokeDeafenOrigin;
+	int			invokeDisarmStartTime;	// local: this player's weapon lockout
+	int			invokeDisarmEndTime;
 
 	// auto rotating items
 	vec3_t		autoAngles;
@@ -1321,6 +1323,8 @@ void CG_InvokeEmpCharge( vec3_t origin, int duration );
 // window so CG_AddInvokeEffects stops drawing the ring immediately.
 void CG_InvokeEmpCancel( void );
 void CG_InvokeDeafenBurst( vec3_t origin );
+void CG_InvokeDisarm( int duration );
+float CG_InvokeDisarmFraction( void );
 void CG_InvokeTornado( centity_t *cent );
 void CG_InvokeBlastMissile( centity_t *cent );
 float CG_InvokeReadyFraction( int now, int castTime, int cooldown );

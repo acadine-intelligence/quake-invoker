@@ -548,6 +548,8 @@ static void G_InvokeDeafenBurst( gentity_t *ent, vec3_t origin ) {
 		VectorMA( targ->client->ps.velocity, DEAFEN_PUSH, dir, targ->client->ps.velocity );
 		targ->client->ps.velocity[2] += 120;
 		G_InvokeState( targ )->disarmedUntil = level.time + DEAFEN_DISARM_MS;
+		// tell the victim: dry-firing with no explanation reads as a bug
+		trap_SendServerCommand( targ - g_entities, va( "invdeafen %i\n", DEAFEN_DISARM_MS ) );
 		G_Damage( targ, ent, ent, dir, targ->client->ps.origin, DEAFEN_DAMAGE, 0, MOD_DEAFENING_BLAST );
 	}
 }
