@@ -533,6 +533,8 @@ typedef struct {
 	vec3_t		invokeDeafenOrigin;
 	int			invokeDisarmStartTime;	// local: this player's weapon lockout
 	int			invokeDisarmEndTime;
+	int			invokeChillStartTime;	// local: this player's Cold Snap debuff
+	int			invokeChillEndTime;
 
 	// auto rotating items
 	vec3_t		autoAngles;
@@ -1326,6 +1328,8 @@ void CG_InvokeEmpCancel( int caster );
 void CG_InvokeDeafenBurst( vec3_t origin );
 void CG_InvokeDisarm( int duration );
 float CG_InvokeDisarmFraction( void );
+void CG_InvokeChill( int duration );
+float CG_InvokeChillFraction( void );
 void CG_InvokeTornado( centity_t *cent );
 void CG_InvokeBlastMissile( centity_t *cent );
 float CG_InvokeReadyFraction( int now, int castTime, int cooldown );

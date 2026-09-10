@@ -50,6 +50,8 @@ void CG_ResetInvokeEffects( void ) {
 	cg.invokeDeafenEndTime = 0;
 	cg.invokeDisarmStartTime = 0;
 	cg.invokeDisarmEndTime = 0;
+	cg.invokeChillStartTime = 0;
+	cg.invokeChillEndTime = 0;
 	cg.invokeStrikeEndTime = 0;
 	// Physical held keys survive gameplay/visual resets until key-up.
 	cg.orbChangeTime = 0;
@@ -148,6 +150,29 @@ float CG_InvokeDisarmFraction( void ) {
 		return 0.0f;
 	}
 	return ( cg.invokeDisarmEndTime - cg.time ) / (float)span;
+}
+
+// Cold Snap landed on this player: the debuff runs for its duration. The
+// HUD shows it; a chilled player needs to know a hit will freeze them.
+void CG_InvokeChill( int duration ) {
+	if ( duration <= 0 ) {
+		return;
+	}
+	cg.invokeChillStartTime = cg.time;
+	cg.invokeChillEndTime = cg.time + duration;
+}
+
+float CG_InvokeChillFraction( void ) {
+	int span;
+
+	if ( cg.invokeChillEndTime <= cg.time ) {
+		return 0.0f;
+	}
+	span = cg.invokeChillEndTime - cg.invokeChillStartTime;
+	if ( span <= 0 ) {
+		return 0.0f;
+	}
+	return ( cg.invokeChillEndTime - cg.time ) / (float)span;
 }
 
 static void CG_InvokeFlashStart( void ) {
@@ -648,6 +673,18 @@ void CG_DrawOrbs( void ) {
 		CG_DrawStringExt( 268, 268, "WEAPONS DISABLED", warnCol, qtrue, qtrue, 6, 10, 0 );
 		CG_FillRect( 268, 281, 104, 5, warnBack );
 		CG_FillRect( 268, 281, 104 * left, 5, warnCol );
+	}
+
+	// chilled: a Cold Snap will freeze THIS player on the next hit taken,
+	// so the debuff runs on the HUD while it holds
+	if ( cg.invokeChillEndTime > cg.time ) {
+		const vec4_t chillCol = { 0.55f, 0.85f, 1.0f, 1.0f };
+		const vec4_t chillBack = { 0.09f, 0.13f, 0.21f, 0.90f };
+		float left = CG_InvokeChillFraction();
+
+		CG_DrawStringExt( 268, 292, "CHILLED", chillCol, qtrue, qtrue, 6, 10, 0 );
+		CG_FillRect( 268, 305, 104, 5, chillBack );
+		CG_FillRect( 268, 305, 104 * left, 5, chillCol );
 	}
 	trap_R_SetColor( NULL );
 }

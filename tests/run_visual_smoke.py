@@ -116,7 +116,8 @@ def main():
                      "invoked Tornado (QWW)", "cast Tornado (-40 mana)",
                      "tornado faded",
                      "invoked Deafening Blast (QWE)", "cast Deafening Blast (-45 mana)",
-                     "deafening blast burst"):
+                     "deafening blast burst",
+                     "invoked Cold Snap (QQQ)", "cast Cold Snap (-35 mana)"):
         assert expected in console, f"Missing {expected!r} in {mod}"
     for error in ("unknown cmd orb", "unknown cmd invoke", "unknown cmd invswap",
                   "unknown cmd invcast", "unknown cmd invemp", "unhandled invoke spell",
@@ -130,7 +131,8 @@ def main():
                         ("EMP (WWW)", "emp_charge"),
                         ("Chaos Meteor (WEE)", "meteor_fly"),
                         ("Tornado (QWW)", "tornado_fly"),
-                        ("Deafening Blast (QWE)", "deafen_fly")):
+                        ("Deafening Blast (QWE)", "deafen_fly"),
+                        ("Cold Snap (QQQ)", "coldsnap_cast")):
         assert console.index("invoked " + combo) < console.index(
             f"Wrote screenshots/{shot}.tga"), "Screenshot preceded server confirmation"
     assert console.index("sunstrike impact") < console.index(
@@ -150,6 +152,7 @@ def main():
              "meteor_fly", "meteor_boom", "meteor_after",
              "tornado_fly", "tornado_lift", "tornado_after",
              "deafen_fly", "deafen_burst", "deafen_after",
+             "coldsnap_cast",
              "effects_off", "spectator", "respawn", "ingame_menu", "invoker_manual",
              "back_to_game")
     screenshots = []

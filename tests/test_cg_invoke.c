@@ -351,6 +351,18 @@ int main( void ) {
 		CHECK( CG_InvokeDisarmFraction() == 0.0f );
 	}
 
+	// the chilled bar drains the same way the disarm bar does
+	{
+		CG_ResetInvokeEffects();
+		CHECK( CG_InvokeChillFraction() == 0.0f );
+		CG_InvokeChill( 5000 );
+		CHECK( CG_InvokeChillFraction() > 0.9f );
+		cg.time += 2500;
+		CHECK( CG_InvokeChillFraction() > 0.4f && CG_InvokeChillFraction() < 0.6f );
+		cg.time += 2600;
+		CHECK( CG_InvokeChillFraction() == 0.0f );
+	}
+
 	// the deafening blast rings draw from cg state until the wave fades
 	{
 		vec3_t here = { 96, 0, 0 };

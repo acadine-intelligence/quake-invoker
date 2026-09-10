@@ -852,6 +852,13 @@ void ClientThink_real( gentity_t *ent ) {
 		client->ps.speed *= 1.3;
 	}
 
+	// a Cold Snap freeze holds movement for its brief window. It must
+	// override the speed set above, so it runs here and not in the invoke
+	// think after the Pmove.
+	if ( G_InvokeClientFrozen( ent ) ) {
+		client->ps.speed = 0;
+	}
+
 	// Let go of the hook if we aren't firing
 	if ( client->ps.weapon == WP_GRAPPLING_HOOK &&
 		client->hook && !( ucmd->buttons & BUTTON_ATTACK ) ) {

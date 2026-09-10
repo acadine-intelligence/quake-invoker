@@ -61,6 +61,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define DEAFEN_DAMAGE		50
 #define DEAFEN_PUSH			260
 #define DEAFEN_DISARM_MS	3000
+// Cold Snap: an aimed debuff. A qualifying hit on the chilled target
+// freezes them briefly and adds damage, at most once per interval. The
+// debuff rules themselves live in bg_invoke.c so host tests share them.
+#define COLD_SNAP_RANGE		1000
+#define COLD_SNAP_DAMAGE	15
 
 typedef struct {
 	int		orbSlots[INVOKE_SLOTS];	// orbType_t values, oldest first
@@ -73,6 +78,7 @@ typedef struct {
 	vec3_t	empOrigin;
 	int		lastNoManaCp;			// level.time of the last mana notice
 	int		disarmedUntil;			// weapon fire stays silent until this time
+	chillState_t	chill;			// Cold Snap debuff on this client
 } invokeState_t;
 
 static invokeState_t	g_invoke[MAX_CLIENTS];
@@ -203,6 +209,7 @@ void G_InvokeReset( gentity_t *ent ) {
 	st->ghostWalkUntil = 0;
 	st->sunstrikeTime = 0;
 	VectorClear( st->sunstrikeOrigin );
+	BG_InvokeChillClear( &st->chill );
 	// a dead caster's pending EMP dies with the life, like Sunstrike:
 	// otherwise the burst lands on the respawned player's behalf
 	G_InvokeCancelPendingEmp( ent );
@@ -256,6 +263,7 @@ of granting something wrong.
 */
 static qboolean G_InvokeSpellCastable( int spell ) {
 	switch ( spell ) {
+	case SPELL_COLD_SNAP:
 	case SPELL_GHOST_WALK:
 	case SPELL_SUNSTRIKE:
 	case SPELL_EMP:
@@ -378,6 +386,29 @@ static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int hand,
 		return;
 	}
 	switch ( spell ) {
+	case SPELL_COLD_SNAP:
+	{
+		gentity_t *targ;
+
+		VectorCopy( ps->origin, start );
+		start[2] += ps->viewheight;
+		AngleVectors( ps->viewangles, forward, NULL, NULL );
+		VectorMA( start, COLD_SNAP_RANGE, forward, end );
+		// players block this ray: the snap needs a target in view
+		trap_Trace( &tr, start, NULL, NULL, end, ent->s.number, MASK_SHOT );
+		if ( tr.entityNum < level.maxclients ) {
+			targ = &g_entities[tr.entityNum];
+			if ( targ->client && targ->client->sess.sessionTeam != TEAM_SPECTATOR
+				&& targ->health > 0 ) {
+				BG_InvokeChillApply( &G_InvokeState( targ )->chill, level.time );
+				trap_SendServerCommand( targ - g_entities,
+					va( "invchill %i\n", COLD_SNAP_DEBUFF_MS ) );
+				trap_SendServerCommand( ent - g_entities,
+					va( "print \"cold snap on %s\\n\"", targ->client->pers.netname ) );
+			}
+		}
+		break;
+	}
 	case SPELL_GHOST_WALK:
 		st->ghostWalkUntil = level.time + 5000;
 		// only extend: a longer invisibility from an item must survive the cast
@@ -448,6 +479,47 @@ static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int hand,
 	// the client draws the recharge bar from this: only a successful cast
 	// arrives here, so the readout never starts on a rejected attempt
 	trap_SendServerCommand( ent - g_entities, va( "invcast %i %i\n", hand, spell ) );
+}
+
+/*
+==============
+G_InvokeDamageTaken
+
+Called from G_Damage for every surviving client that took real damage.
+A chilled target freezes and takes the trigger damage at most once per
+COLD_SNAP_TRIGGER_MS; Cold Snap's own damage never re-triggers it.
+==============
+*/
+void G_InvokeDamageTaken( gentity_t *targ, gentity_t *attacker, vec3_t dir, int mod ) {
+	invokeState_t	*st = G_InvokeState( targ );
+
+	if ( !BG_InvokeChillCanTrigger( &st->chill, level.time,
+		( mod == MOD_COLD_SNAP ) ? qtrue : qfalse ) ) {
+		return;
+	}
+	// arm the interval and the freeze before the bonus damage lands: the
+	// bonus can then never re-enter this trigger, however it bounces
+	BG_InvokeChillTriggered( &st->chill, level.time );
+	// brief freeze: a hard stop now, and locked movement while it lasts
+	VectorClear( targ->client->ps.velocity );
+	G_Damage( targ, attacker, attacker, dir, targ->client->ps.origin,
+		COLD_SNAP_DAMAGE, DAMAGE_NO_KNOCKBACK, MOD_COLD_SNAP );
+}
+
+/*
+==============
+G_InvokeClientFrozen
+
+True while the Cold Snap freeze holds this client. g_active.c consults
+this where it sets movement speed each frame, so the freeze covers the
+same prediction values the client sees.
+==============
+*/
+qboolean G_InvokeClientFrozen( gentity_t *ent ) {
+	if ( !ent || !ent->client ) {
+		return qfalse;
+	}
+	return G_InvokeState( ent )->chill.freezeUntil > level.time;
 }
 
 /*

@@ -1086,6 +1086,16 @@ static void CG_ServerCommand( void ) {
 		return;
 	}
 
+	// Server-announced Cold Snap debuff: this player is chilled.
+	if ( !strcmp( cmd, "invchill" ) ) {
+		if ( trap_Argc() == 2 ) {
+			CG_InvokeChill( atoi( CG_Argv(1) ) );
+		} else {
+			CG_Printf( "invchill: expected 1 arg, got %i\n", trap_Argc() - 1 );
+		}
+		return;
+	}
+
 	if ( !strcmp( cmd, "print" ) ) {
 		CG_Printf( "%s", CG_Argv(1) );
 #ifdef MISSIONPACK

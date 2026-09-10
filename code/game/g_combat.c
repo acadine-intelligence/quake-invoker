@@ -314,7 +314,8 @@ char	*modNames[] = {
 	"MOD_EMP",
 	"MOD_CHAOS_METEOR",
 	"MOD_CHAOS_METEOR_SPLASH",
-	"MOD_DEAFENING_BLAST"
+	"MOD_DEAFENING_BLAST",
+	"MOD_COLD_SNAP"
 };
 
 #ifdef MISSIONPACK
@@ -1050,6 +1051,11 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		}
 	}
 
+	// invoker reaction: a surviving chilled client may freeze and take
+	// the Cold Snap trigger damage
+	if ( targ->client && take > 0 && targ->health > 0 ) {
+		G_InvokeDamageTaken( targ, attacker, dir, mod );
+	}
 }
 
 

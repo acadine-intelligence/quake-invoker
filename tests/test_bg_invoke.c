@@ -272,6 +272,33 @@ int main( void ) {
 	BG_InvokeManaRegen( &hands, 1000 );
 	CHECK( hands.mana == INVOKE_MANA_MAX, "regen stops at the cap" );
 
+	// cold snap: the debuff window, the trigger interval, and the
+	// no-recursion rule all follow the shared state machine
+	{
+		chillState_t chill;
+
+		memset( &chill, 0, sizeof( chill ) );
+		CHECK( !BG_InvokeChillCanTrigger( &chill, 1000, qfalse ),
+			"no debuff, no trigger" );
+		BG_InvokeChillApply( &chill, 1000 );
+		CHECK( BG_InvokeChillCanTrigger( &chill, 1000, qfalse ),
+			"a fresh debuff triggers on the next hit" );
+		BG_InvokeChillTriggered( &chill, 1000 );
+		CHECK( chill.freezeUntil == 1000 + COLD_SNAP_FREEZE_MS,
+			"a trigger starts the freeze window" );
+		CHECK( !BG_InvokeChillCanTrigger( &chill, 1000, qfalse ),
+			"a second hit inside the interval does not trigger" );
+		CHECK( BG_InvokeChillCanTrigger( &chill, 1000 + COLD_SNAP_TRIGGER_MS, qfalse ),
+			"the trigger comes back after the interval" );
+		CHECK( !BG_InvokeChillCanTrigger( &chill, 1500, qtrue ),
+			"its own damage never recurses" );
+		CHECK( !BG_InvokeChillCanTrigger( &chill, 1000 + COLD_SNAP_DEBUFF_MS, qfalse ),
+			"an expired debuff cannot trigger" );
+		BG_InvokeChillClear( &chill );
+		CHECK( !BG_InvokeChillCanTrigger( &chill, 1500, qfalse ),
+			"a cleared debuff cannot trigger" );
+	}
+
 	// every classic spell recipe maps to its definition, and no other
 	// recipe carries a spell ID
 	{

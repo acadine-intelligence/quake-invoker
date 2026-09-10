@@ -5,6 +5,8 @@
 #include <string.h>
 #include <stddef.h>
 #define qboolean int
+#define qfalse 0
+#define qtrue 1
 #define Com_Memset memset
 #define ARRAY_LEN(x) (sizeof(x) / sizeof(*(x)))
 typedef enum { WP_NONE, WP_GAUNTLET, WP_MACHINEGUN, WP_SHOTGUN, WP_GRENADE_LAUNCHER, WP_ROCKET_LAUNCHER,

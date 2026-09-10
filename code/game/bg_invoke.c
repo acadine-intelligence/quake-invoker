@@ -94,6 +94,48 @@ const spellDef_t *BG_SpellDef( int spell ) {
 
 /*
 ==============
+BG_InvokeChillClear / Apply / CanTrigger / Triggered
+
+Cold Snap's debuff rules, kept here so the host tests and the server run
+the same code. A hit triggers the freeze and the extra damage only when
+the debuff holds, the internal interval has elapsed, and the damage did
+not come from Cold Snap itself (its own damage must never recurse).
+==============
+*/
+void BG_InvokeChillClear( chillState_t *chill ) {
+	chill->until = 0;
+	chill->nextTrigger = 0;
+	chill->freezeUntil = 0;
+}
+
+void BG_InvokeChillApply( chillState_t *chill, int now ) {
+	chill->until = now + COLD_SNAP_DEBUFF_MS;
+	// a fresh snap may trigger on the very next hit; an in-flight freeze
+	// keeps its own end (a recast never extends a freeze)
+	chill->nextTrigger = 0;
+}
+
+qboolean BG_InvokeChillCanTrigger( const chillState_t *chill, int now,
+	qboolean ownDamage ) {
+	if ( !chill->until || now >= chill->until ) {
+		return qfalse;
+	}
+	if ( ownDamage ) {
+		return qfalse;
+	}
+	if ( now < chill->nextTrigger ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+void BG_InvokeChillTriggered( chillState_t *chill, int now ) {
+	chill->nextTrigger = now + COLD_SNAP_TRIGGER_MS;
+	chill->freezeUntil = now + COLD_SNAP_FREEZE_MS;
+}
+
+/*
+==============
 BG_PushOrb
 ==============
 */

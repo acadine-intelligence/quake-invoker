@@ -90,6 +90,24 @@ typedef struct {
 extern const spellDef_t bg_spells[];
 const spellDef_t *BG_SpellDef( int spell );
 
+// Cold Snap debuff state, shared so the host tests exercise the same rules
+// the server runs. until/nextTrigger/freezeUntil are level.time stamps.
+typedef struct {
+	int	until;			// level.time the debuff ends (0 = none active)
+	int	nextTrigger;	// earliest level.time a hit may trigger a freeze
+	int	freezeUntil;	// level.time the triggered freeze ends
+} chillState_t;
+
+#define COLD_SNAP_DEBUFF_MS		5000
+#define COLD_SNAP_TRIGGER_MS	900
+#define COLD_SNAP_FREEZE_MS		250
+
+void BG_InvokeChillClear( chillState_t *chill );
+void BG_InvokeChillApply( chillState_t *chill, int now );
+qboolean BG_InvokeChillCanTrigger( const chillState_t *chill, int now,
+	qboolean ownDamage );
+void BG_InvokeChillTriggered( chillState_t *chill, int now );
+
 // Server-authoritative hand assignment and per-item timing. nextFireTime is
 // indexed by weapon so duplicate weapons in both hands necessarily share it;
 // nextCastTime is indexed by spell the same way. mana is one pool for both
