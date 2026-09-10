@@ -324,14 +324,19 @@ static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int spell ) {
 	switch ( spell ) {
 	case SPELL_GHOST_WALK:
 		st->ghostWalkUntil = level.time + 5000;
-		ps->powerups[PW_INVIS] = st->ghostWalkUntil;
+		// only extend: a longer invisibility from an item must survive the cast
+		if ( ps->powerups[PW_INVIS] < st->ghostWalkUntil ) {
+			ps->powerups[PW_INVIS] = st->ghostWalkUntil;
+		}
 		break;
 	case SPELL_SUNSTRIKE:
 		VectorCopy( ps->origin, start );
 		start[2] += ps->viewheight;
 		AngleVectors( ps->viewangles, forward, NULL, NULL );
 		VectorMA( start, 8192, forward, end );
-		trap_Trace( &tr, start, NULL, NULL, end, ent->s.number, MASK_SHOT );
+		// world geometry only: the aim ray passes through players, so the
+		// strike can be placed on ground behind them
+		trap_Trace( &tr, start, NULL, NULL, end, ent->s.number, CONTENTS_SOLID );
 		VectorCopy( tr.endpos, st->sunstrikeOrigin );
 		st->sunstrikeTime = level.time + 1750;
 		break;
@@ -353,8 +358,9 @@ The caster is immune to the strike.
 */
 static void G_InvokeStrike( gentity_t *ent, vec3_t origin ) {
 	gentity_t	*te, *targ;
-	vec3_t		dir, diff, up = { 0.0f, 0.0f, 1.0f };
-	int		i;
+	vec3_t		dir, diff, start, up = { 0.0f, 0.0f, 1.0f };
+	trace_t		tr;
+	int			i;
 
 	te = G_TempEntity( origin, EV_SUNSTRIKE );
 	VectorMA( origin, 768, up, te->s.origin2 );
@@ -364,16 +370,25 @@ static void G_InvokeStrike( gentity_t *ent, vec3_t origin ) {
 	for ( i = 0; i < level.maxclients; i++ ) {
 		targ = &g_entities[i];
 		if ( !targ->inuse || !targ->client || targ == ent || targ->health <= 0
-			|| targ->client->pers.connected != CON_CONNECTED ) {
+			|| targ->client->pers.connected != CON_CONNECTED
+			|| targ->client->ps.pm_type == PM_SPECTATOR ) {
 			continue;
 		}
 		VectorSubtract( targ->client->ps.origin, origin, diff );
 		if ( VectorLengthSquared( diff ) > 200.0f * 200.0f ) {
 			continue;
 		}
+		// a wall between the strike point and the target shields it
+		VectorCopy( origin, start );
+		start[2] += 2;
+		trap_Trace( &tr, start, NULL, NULL, targ->client->ps.origin, ent->s.number, CONTENTS_SOLID );
+		if ( tr.fraction < 1.0f ) {
+			continue;
+		}
 		VectorCopy( diff, dir );
 		VectorNormalize( dir );
-		G_Damage( targ, ent, ent, dir, targ->client->ps.origin, 90, 0, MOD_SUNSTRIKE );
+		// the design rule for Sunstrike: its damage bypasses armor
+		G_Damage( targ, ent, ent, dir, targ->client->ps.origin, 90, DAMAGE_NO_ARMOR, MOD_SUNSTRIKE );
 	}
 }
 
