@@ -43,6 +43,8 @@ void CG_ResetInvokeEffects( void ) {
 	memset( cg.invokeHandSpells, 0, sizeof( cg.invokeHandSpells ) );
 	memset( cg.invokeHandFireTime, 0, sizeof( cg.invokeHandFireTime ) );
 	memset( cg.invokeCastTime, 0, sizeof( cg.invokeCastTime ) );
+	cg.invokeEmpStartTime = 0;
+	cg.invokeEmpEndTime = 0;
 	cg.invokeStrikeEndTime = 0;
 	// Physical held keys survive gameplay/visual resets until key-up.
 	cg.orbChangeTime = 0;
@@ -94,6 +96,17 @@ void CG_InvokeStrikeBeam( vec3_t start, vec3_t end ) {
 	VectorCopy( start, cg.invokeStrikeStart );
 	VectorCopy( end, cg.invokeStrikeEnd );
 	cg.invokeStrikeEndTime = cg.time + 600;
+}
+
+// The server announces each EMP charge with "invemp": where the burst sits
+// and how long the charge runs. The client draws the ring from cg state.
+void CG_InvokeEmpCharge( vec3_t origin, int duration ) {
+	if ( duration <= 0 ) {
+		return;
+	}
+	VectorCopy( origin, cg.invokeEmpOrigin );
+	cg.invokeEmpStartTime = cg.time;
+	cg.invokeEmpEndTime = cg.time + duration;
 }
 
 static void CG_InvokeFlashStart( void ) {
@@ -238,11 +251,31 @@ static void CG_InvokeSprite( const vec3_t origin, float radius,
 	trap_R_AddRefEntityToScene( &ent );
 }
 
+// World-anchored sprite without the first-person depth hack: EMP charges
+// sit in the level and must depth test like any other scenery.
+static void CG_InvokeWorldSprite( const vec3_t origin, float radius,
+	const vec4_t color, float brightness, float rotation ) {
+	refEntity_t ent;
+	int i;
+
+	memset( &ent, 0, sizeof( ent ) );
+	ent.reType = RT_SPRITE;
+	ent.customShader = cgs.media.railRingsShader;
+	VectorCopy( origin, ent.origin );
+	ent.radius = radius;
+	ent.rotation = rotation;
+	for ( i = 0; i < 3; i++ ) {
+		ent.shaderRGBA[i] = (byte)( 255 * color[i] * brightness );
+	}
+	ent.shaderRGBA[3] = 255;
+	trap_R_AddRefEntityToScene( &ent );
+}
+
 // Camera-relative motes orbit below the crosshair. No game entities or
 // particles accumulate: each frame submits a fixed, bounded render list.
 void CG_AddInvokeEffects( void ) {
 	int i, j, orb, held;
-	float angle, phase, fade, flash, progress;
+	float angle, phase, fade, flash, progress, span;
 	vec3_t origin;
 	vec4_t color;
 
@@ -278,6 +311,26 @@ void CG_AddInvokeEffects( void ) {
 		beam.reType = RT_LIGHTNING;
 		beam.customShader = cgs.media.lightningShader;
 		trap_R_AddRefEntityToScene( &beam );
+	}
+
+	// emp: an expanding charge ring at the burst point until it lands
+	if ( cg.invokeEmpEndTime > cg.time ) {
+		float charge = 0.0f;
+
+		span = cg.invokeEmpEndTime - cg.invokeEmpStartTime;
+		if ( span > 0 ) {
+			charge = ( cg.time - cg.invokeEmpStartTime ) / span;
+			if ( charge < 0 ) {
+				charge = 0;
+			}
+			if ( charge > 1 ) {
+				charge = 1;
+			}
+		}
+		CG_InvokeWorldSprite( cg.invokeEmpOrigin, 24 + 170 * charge,
+			orbColors[ORB_WEX], 0.35f + 0.65f * charge, charge * 120 );
+		trap_R_AddLightToScene( cg.invokeEmpOrigin, 100 + 140 * charge,
+			0.35f, 0.6f, 1.0f );
 	}
 
 	flash = CG_InvokeFlash();

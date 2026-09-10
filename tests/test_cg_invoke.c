@@ -286,6 +286,25 @@ int main( void ) {
 	CHECK( cooldownBars == 4 );			// back bar plus drain on both hands
 	CG_ResetInvokeEffects();
 	CHECK( cg.invokeCastTime[SPELL_GHOST_WALK] == 0 );
+
+	// the emp charge ring draws from cg state until it bursts
+	{
+		vec3_t here = { 64, 0, 0 };
+		float ringRadius;
+
+		CG_ResetInvokeEffects();
+		CG_InvokeEmpCharge( here, 2500 );
+		frame();
+		CHECK( entityCount == 1 && lightCount == 1 );	// ring plus charge light
+		CHECK( entities[0].reType == RT_SPRITE && entities[0].radius > 20 );
+		ringRadius = entities[0].radius;
+		cg.time += 2000;
+		frame();
+		CHECK( entityCount == 1 && entities[0].radius > ringRadius );
+		cg.time += 600;
+		frame();
+		CHECK( !entityCount && !lightCount );
+	}
 	cg.snap = NULL;
 	frame();
 	CHECK( !entityCount && !hudCount );

@@ -1047,6 +1047,19 @@ static void CG_ServerCommand( void ) {
 		return;
 	}
 
+	// Server-announced EMP charge: draw the ring until the burst lands.
+	if ( !strcmp( cmd, "invemp" ) ) {
+		if ( trap_Argc() == 6 ) {
+			vec3_t origin;
+
+			origin[0] = atof( CG_Argv(1) );
+			origin[1] = atof( CG_Argv(2) );
+			origin[2] = atof( CG_Argv(3) );
+			CG_InvokeEmpCharge( origin, atoi( CG_Argv(4) ) );
+		}
+		return;
+	}
+
 	if ( !strcmp( cmd, "print" ) ) {
 		CG_Printf( "%s", CG_Argv(1) );
 #ifdef MISSIONPACK

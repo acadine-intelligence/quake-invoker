@@ -459,7 +459,8 @@ typedef enum {
 	EV_TAUNT_GUARDBASE,
 	EV_TAUNT_PATROL,
 
-	EV_SUNSTRIKE				// invoker Sunstrike: origin2 to pos.trBase beam
+	EV_SUNSTRIKE,				// invoker Sunstrike: origin2 to pos.trBase beam
+	EV_EMP						// invoker EMP: burst at the charge point
 
 } entity_event_t;
 
@@ -613,7 +614,10 @@ typedef enum {
 	MOD_JUICED,
 #endif
 	MOD_GRAPPLE,
-	MOD_SUNSTRIKE
+	MOD_SUNSTRIKE,
+	MOD_EMP,
+	MOD_CHAOS_METEOR,
+	MOD_CHAOS_METEOR_SPLASH
 } meansOfDeath_t;
 
 

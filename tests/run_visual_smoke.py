@@ -110,16 +110,21 @@ def main():
                      "invoked Lightning Gun (WWQ)", "Ice Wall: not castable yet",
                      "invoked Ghost Walk (QQW)", "cast Ghost Walk (-25 mana)",
                      "invoked Sunstrike (EEE)", "cast Sunstrike (-45 mana)",
-                     "sunstrike impact", "Invoker manual opened"):
+                     "sunstrike impact", "Invoker manual opened",
+                     "invoked EMP (WWW)", "cast EMP (-45 mana)", "emp impact",
+                     "invoked Chaos Meteor (WEE)", "cast Chaos Meteor (-55 mana)"):
         assert expected in console, f"Missing {expected!r} in {mod}"
     for error in ("unknown cmd orb", "unknown cmd invoke", "unknown cmd invswap",
-                  "unknown cmd invcast", "unhandled invoke spell", "VM_Abort", "ERROR:", "Unknown command",
+                  "unknown cmd invcast", "unknown cmd invemp", "unhandled invoke spell",
+                  "VM_Abort", "ERROR:", "Unknown command",
                   "May not switch teams"):
         assert error not in console, f"Unexpected {error!r} in {mod}"
     for combo, shot in (("Rocket Launcher (WQW)", "rocket_cast"),
                         ("Lightning Gun (WWQ)", "lightning_cast"),
                         ("Ghost Walk (QQW)", "ghost_equipped"),
-                        ("Sunstrike (EEE)", "sun_g1")):
+                        ("Sunstrike (EEE)", "sun_g1"),
+                        ("EMP (WWW)", "emp_charge"),
+                        ("Chaos Meteor (WEE)", "meteor_fly")):
         assert console.index("invoked " + combo) < console.index(
             f"Wrote screenshots/{shot}.tga"), "Screenshot preceded server confirmation"
     assert console.index("sunstrike impact") < console.index(
@@ -133,6 +138,8 @@ def main():
              "sun_g1", "sun_g2", "sun_g3", "sun_g4", "sun_g5", "sun_g6",
              "sun_g7", "sun_g8", "sun_g9", "sun_g10", "sun_g11", "sun_g12",
              "sunstrike_after",
+             "emp_charge", "emp_charge2", "emp_burst", "emp_after",
+             "meteor_fly", "meteor_boom", "meteor_after",
              "effects_off", "spectator", "respawn", "ingame_menu", "invoker_manual",
              "back_to_game")
     screenshots = []

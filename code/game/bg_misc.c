@@ -1383,7 +1383,8 @@ char *eventnames[] = {
 	"EV_TAUNT_GUARDBASE",
 	"EV_TAUNT_PATROL",
 
-	"EV_SUNSTRIKE"
+	"EV_SUNSTRIKE",
+	"EV_EMP"
 
 };
 

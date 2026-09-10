@@ -676,6 +676,47 @@ gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir) {
 
 /*
 =================
+fire_invoke_meteor
+
+Chaos Meteor: a slow, heavy missile with its own kill message. It keeps the
+rocket's trail and explosion visuals; only the numbers and the obituary are
+its own.
+=================
+*/
+gentity_t *fire_invoke_meteor (gentity_t *self, vec3_t start, vec3_t dir) {
+	gentity_t	*bolt;
+
+	VectorNormalize (dir);
+
+	bolt = G_Spawn();
+	bolt->classname = "meteor";
+	bolt->nextthink = level.time + 15000;
+	bolt->think = G_ExplodeMissile;
+	bolt->s.eType = ET_MISSILE;
+	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
+	bolt->s.weapon = WP_ROCKET_LAUNCHER;
+	bolt->r.ownerNum = self->s.number;
+	bolt->parent = self;
+	bolt->damage = 80;
+	bolt->splashDamage = 80;
+	bolt->splashRadius = 160;
+	bolt->methodOfDeath = MOD_CHAOS_METEOR;
+	bolt->splashMethodOfDeath = MOD_CHAOS_METEOR_SPLASH;
+	bolt->clipmask = MASK_SHOT;
+	bolt->target_ent = NULL;
+
+	bolt->s.pos.trType = TR_LINEAR;
+	bolt->s.pos.trTime = level.time - MISSILE_PRESTEP_TIME;		// move a bit on the very first frame
+	VectorCopy( start, bolt->s.pos.trBase );
+	VectorScale( dir, 500, bolt->s.pos.trDelta );
+	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
+	VectorCopy (start, bolt->r.currentOrigin);
+
+	return bolt;
+}
+
+/*
+=================
 fire_grapple
 =================
 */

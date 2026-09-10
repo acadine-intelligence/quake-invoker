@@ -524,6 +524,9 @@ typedef struct {
 	int			invokeHandSpells[MAX_CLIENTS][INVOKE_HANDS];
 	int			invokeHandFireTime[MAX_CLIENTS][INVOKE_HANDS];
 	int			invokeCastTime[SPELL_NUM];	// local: cg.time of the last confirmed cast, per spell
+	int			invokeEmpStartTime;	// local: EMP charge window from "invemp"
+	int			invokeEmpEndTime;
+	vec3_t		invokeEmpOrigin;
 
 	// auto rotating items
 	vec3_t		autoAngles;
@@ -1306,6 +1309,7 @@ void CG_InvokeStrikeBeam( vec3_t start, vec3_t end );
 void CG_InvokeMovementKey( int moveKey, qboolean down );
 void CG_InvokeHandFired( centity_t *cent, int hand, int weapon );
 void CG_InvokeSpellCast( int hand, int spell );
+void CG_InvokeEmpCharge( vec3_t origin, int duration );
 float CG_InvokeReadyFraction( int now, int castTime, int cooldown );
 void CG_AddInvokeEffects( void );
 void CG_DrawOrbs( void );

@@ -47,6 +47,8 @@ typedef struct {
 	int		ghostWalkUntil;			// level.time the cast invisibility ends
 	int		sunstrikeTime;			// level.time the aimed strike lands (0 = none)
 	vec3_t	sunstrikeOrigin;
+	int		empTime;				// level.time the EMP burst lands (0 = none)
+	vec3_t	empOrigin;
 } invokeState_t;
 
 static invokeState_t	g_invoke[MAX_CLIENTS];
@@ -207,6 +209,8 @@ static qboolean G_InvokeSpellCastable( int spell ) {
 	switch ( spell ) {
 	case SPELL_GHOST_WALK:
 	case SPELL_SUNSTRIKE:
+	case SPELL_EMP:
+	case SPELL_CHAOS_METEOR:
 		return qtrue;
 	default:
 		return qfalse;
@@ -341,6 +345,19 @@ static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int hand,
 		VectorCopy( tr.endpos, st->sunstrikeOrigin );
 		st->sunstrikeTime = level.time + 1750;
 		break;
+	case SPELL_EMP:
+		VectorCopy( ps->origin, st->empOrigin );
+		st->empTime = level.time + 2500;
+		// the client draws the charge ring from this until the burst
+		trap_SendServerCommand( ent - g_entities, va( "invemp %f %f %f %i\n",
+			st->empOrigin[0], st->empOrigin[1], st->empOrigin[2], 2500 ) );
+		break;
+	case SPELL_CHAOS_METEOR:
+		VectorCopy( ps->origin, start );
+		start[2] += ps->viewheight;
+		AngleVectors( ps->viewangles, forward, NULL, NULL );
+		fire_invoke_meteor( ent, start, forward );
+		break;
 	default:
 		// reachable only if a spell joins G_InvokeSpellCastable without an
 		// implementation here: stay loud instead of quietly eating mana
@@ -401,21 +418,61 @@ static void G_InvokeStrike( gentity_t *ent, vec3_t origin ) {
 
 /*
 ==============
+G_InvokeEmp
+
+A 600-unit burst around the charge point: 70 damage and a shove away from
+the center. The caster is immune, like Sunstrike.
+==============
+*/
+static void G_InvokeEmp( gentity_t *ent, vec3_t origin ) {
+	gentity_t	*te, *targ;
+	vec3_t		dir, diff, up = { 0.0f, 0.0f, 1.0f };
+	int			i;
+
+	te = G_TempEntity( origin, EV_EMP );
+	te->s.weapon = WP_ROCKET_LAUNCHER;
+	te->s.eventParm = DirToByte( up );
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		targ = &g_entities[i];
+		if ( !targ->inuse || !targ->client || targ == ent || targ->health <= 0
+			|| targ->client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		VectorSubtract( targ->client->ps.origin, origin, diff );
+		if ( VectorLengthSquared( diff ) > 600.0f * 600.0f ) {
+			continue;
+		}
+		VectorCopy( diff, dir );
+		VectorNormalize( dir );
+		VectorMA( targ->client->ps.velocity, 320, dir, targ->client->ps.velocity );
+		targ->client->ps.velocity[2] += 140;
+		G_Damage( targ, ent, ent, dir, targ->client->ps.origin, 70, 0, MOD_EMP );
+	}
+}
+
+/*
+==============
 G_InvokeProcessPending
 
-Lands a scheduled Sunstrike once its delay elapses.
+Lands a scheduled Sunstrike or EMP once its delay elapses.
 ==============
 */
 static void G_InvokeProcessPending( gentity_t *ent, invokeState_t *st, int now ) {
 	vec3_t	origin;
 
-	if ( !st->sunstrikeTime || now < st->sunstrikeTime ) {
-		return;
+	if ( st->sunstrikeTime && now >= st->sunstrikeTime ) {
+		st->sunstrikeTime = 0;
+		VectorCopy( st->sunstrikeOrigin, origin );
+		G_InvokeStrike( ent, origin );
+		trap_SendServerCommand( ent - g_entities, "print \"sunstrike impact\n\"" );
 	}
-	st->sunstrikeTime = 0;
-	VectorCopy( st->sunstrikeOrigin, origin );
-	G_InvokeStrike( ent, origin );
-	trap_SendServerCommand( ent - g_entities, "print \"sunstrike impact\n\"" );
+	if ( st->empTime && now >= st->empTime ) {
+		st->empTime = 0;
+		VectorCopy( st->empOrigin, origin );
+		G_InvokeEmp( ent, origin );
+		trap_SendServerCommand( ent - g_entities, "print \"emp impact\n\"" );
+	}
 }
 
 /*
@@ -473,6 +530,10 @@ static void G_InvokeFireHand( gentity_t *ent, invokeState_t *st, int hand,
 		result = BG_InvokeTryCast( &st->hands, hand, fireTime, def->cost,
 			def->cooldown, &spell );
 		if ( result != INVOKE_FIRE_OK ) {
+			if ( result == INVOKE_FIRE_NO_MANA ) {
+				trap_SendServerCommand( ent - g_entities,
+					va( "cp \"%s: not enough mana\n\"", def->name ) );
+			}
 			return;
 		}
 		G_InvokeCastSpell( ent, st, hand, spell );

@@ -310,7 +310,10 @@ char	*modNames[] = {
 	"MOD_JUICED",
 #endif
 	"MOD_GRAPPLE",
-	"MOD_SUNSTRIKE"
+	"MOD_SUNSTRIKE",
+	"MOD_EMP",
+	"MOD_CHAOS_METEOR",
+	"MOD_CHAOS_METEOR_SPLASH"
 };
 
 #ifdef MISSIONPACK
