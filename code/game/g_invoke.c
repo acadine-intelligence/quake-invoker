@@ -312,7 +312,8 @@ Runs a successful cast. Ghost Walk turns the caster invisible for 5 s;
 Sunstrike aims now and lands 1.75 s later, so the strike is dodgeable.
 ==============
 */
-static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int spell ) {
+static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int hand,
+	int spell ) {
 	playerState_t		*ps = &ent->client->ps;
 	const spellDef_t	*def = BG_SpellDef( spell );
 	vec3_t			start, end, forward;
@@ -346,6 +347,9 @@ static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int spell ) {
 	trap_SendServerCommand( ent - g_entities, va( "cp \"%s\n\"", def->name ) );
 	trap_SendServerCommand( ent - g_entities, va( "print \"cast %s (-%i mana)\n\"",
 		def->name, def->cost ) );
+	// the client draws the recharge bar from this: only a successful cast
+	// arrives here, so the readout never starts on a rejected attempt
+	trap_SendServerCommand( ent - g_entities, va( "invcast %i %i\n", hand, spell ) );
 }
 
 /*
@@ -468,7 +472,7 @@ static void G_InvokeFireHand( gentity_t *ent, invokeState_t *st, int hand,
 		if ( result != INVOKE_FIRE_OK ) {
 			return;
 		}
-		G_InvokeCastSpell( ent, st, spell );
+		G_InvokeCastSpell( ent, st, hand, spell );
 		return;
 	}
 	cooldown = G_InvokeCooldown( ent, weapon );

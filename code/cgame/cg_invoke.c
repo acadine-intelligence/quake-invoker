@@ -42,6 +42,8 @@ void CG_ResetInvokeEffects( void ) {
 	memset( cg.invokeHandWeapons, 0, sizeof( cg.invokeHandWeapons ) );
 	memset( cg.invokeHandSpells, 0, sizeof( cg.invokeHandSpells ) );
 	memset( cg.invokeHandFireTime, 0, sizeof( cg.invokeHandFireTime ) );
+	memset( cg.invokeCastTime, 0, sizeof( cg.invokeCastTime ) );
+	memset( cg.invokeCastSpell, 0, sizeof( cg.invokeCastSpell ) );
 	cg.invokeStrikeEndTime = 0;
 	// Physical held keys survive gameplay/visual resets until key-up.
 	cg.orbChangeTime = 0;
@@ -160,6 +162,36 @@ void CG_InvokeHandFired( centity_t *cent, int hand, int weapon ) {
 		return;
 	}
 	cg.invokeHandFireTime[clientNum][hand] = cg.time;
+}
+
+// The server confirms each successful cast with an "invcast" message. The
+// client remembers when, so the HUD can show the spell recharging. Server
+// timing stays authoritative; this only drives the readout.
+void CG_InvokeSpellCast( int hand, int spell ) {
+	if ( hand < 0 || hand >= INVOKE_HANDS
+		|| spell <= SPELL_NONE || spell >= SPELL_NUM ) {
+		return;
+	}
+	cg.invokeCastTime[hand] = cg.time;
+	cg.invokeCastSpell[hand] = spell;
+}
+
+// 0.0 right after a cast, 1.0 when the spell is ready again. A hand that
+// never cast, or a spell without a cooldown, is always ready.
+float CG_InvokeReadyFraction( int now, int castTime, int cooldown ) {
+	int remaining;
+
+	if ( cooldown <= 0 || castTime <= 0 ) {
+		return 1.0f;
+	}
+	remaining = castTime + cooldown - now;
+	if ( remaining <= 0 ) {
+		return 1.0f;
+	}
+	if ( remaining >= cooldown ) {
+		return 0.0f;
+	}
+	return 1.0f - remaining / (float)cooldown;
 }
 
 static qboolean CG_InvokeVisible( void ) {
@@ -308,12 +340,14 @@ static const char *CG_InvokeHandLabel( const char *label, int weapon, int spell,
 void CG_DrawOrbs( void ) {
 	const invocation_t *inv;
 	const char *text;
-	int i, orb, mana;
-	float x, size, pulse, flash;
+	int i, orb, mana, spellId;
+	float x, size, pulse, flash, ready;
+	const spellDef_t *spellDef;
 	vec4_t color;
 	const vec4_t panel = { 0.025f, 0.035f, 0.065f, 0.78f };
 	const vec4_t barBack = { 0.09f, 0.13f, 0.21f, 0.90f };
 	const vec4_t barFill = { 0.25f, 0.55f, 1.00f, 0.95f };
+	const vec4_t cooldownFill = { 0.95f, 0.72f, 0.25f, 0.95f };
 	vec4_t muted = { 0.58f, 0.66f, 0.78f, 1.0f };
 	vec4_t white = { 0.94f, 0.97f, 1.0f, 1.0f };
 	int clientNum;
@@ -335,6 +369,11 @@ void CG_DrawOrbs( void ) {
 		trap_R_SetColor( color );
 		CG_DrawPic( x - size / 2, 110 - size / 2, size, size, cgs.media.railRingsShader );
 		trap_R_SetColor( NULL );
+		if ( orb ) {
+			// key legend on the ring: D, W and A push Q, W and E
+			CG_DrawStringExt( (int)x - 4, 104, va( "%c", BG_OrbLetter( orb ) ),
+				white, qtrue, qtrue, 8, 12, 0 );
+		}
 	}
 	inv = BG_FindInvocation( cg.orbSlots );
 	text = inv ? va( "READY %s", inv->name ) : "Choose an orb";
@@ -358,14 +397,24 @@ void CG_DrawOrbs( void ) {
 	}
 
 	clientNum = cg.snap->ps.clientNum;
-	CG_DrawStringExt( 24, 176, CG_InvokeHandLabel( "LEFT",
-		cg.invokeHandWeapons[clientNum][INVOKE_HAND_LEFT],
-		cg.invokeHandSpells[clientNum][INVOKE_HAND_LEFT], cg.snap->ps.ammo ),
-		white, qtrue, qtrue, 6, 10, 0 );
-	CG_DrawStringExt( 24, 188, CG_InvokeHandLabel( "RIGHT",
-		cg.invokeHandWeapons[clientNum][INVOKE_HAND_RIGHT],
-		cg.invokeHandSpells[clientNum][INVOKE_HAND_RIGHT], cg.snap->ps.ammo ),
-		white, qtrue, qtrue, 6, 10, 0 );
+	for ( i = 0; i < INVOKE_HANDS; i++ ) {
+		spellId = cg.invokeHandSpells[clientNum][i];
+		spellDef = BG_SpellDef( spellId );
+		ready = 1.0f;
+		if ( spellDef && spellDef->cooldown > 0 ) {
+			ready = CG_InvokeReadyFraction( cg.time, cg.invokeCastTime[i],
+				spellDef->cooldown );
+		}
+		CG_DrawStringExt( 24, 176 + i * 12, CG_InvokeHandLabel(
+			i == INVOKE_HAND_LEFT ? "LEFT" : "RIGHT",
+			cg.invokeHandWeapons[clientNum][i], spellId, cg.snap->ps.ammo ),
+			ready < 1.0f ? muted : white, qtrue, qtrue, 6, 10, 0 );
+		if ( ready < 1.0f ) {
+			// recharging: a full amber bar drains as the spell comes back
+			CG_FillRect( 120, 178 + i * 12, 66, 6, barBack );
+			CG_FillRect( 120, 178 + i * 12, 66 * ( 1.0f - ready ), 6, cooldownFill );
+		}
+	}
 
 	memcpy( keyColor, orbColors[ORB_WEX], sizeof( keyColor ) );
 	keyColor[3] = ( cg.invokeMoveKeys & INVOKE_MOVE_W ) ? 0.9f : 0.20f;

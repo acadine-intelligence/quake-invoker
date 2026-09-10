@@ -821,12 +821,12 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		break;
 	case EV_SUNSTRIKE:
 	{
-		vec3_t	dir;
+		vec3_t	beamDir;
 
 		DEBUGNAME("EV_SUNSTRIKE");
-		ByteToDir( es->eventParm, dir );
+		ByteToDir( es->eventParm, beamDir );
 		CG_InvokeStrikeBeam( es->origin2, cent->lerpOrigin );
-		CG_MissileHitWall( es->weapon, 0, cent->lerpOrigin, dir, IMPACTSOUND_DEFAULT );
+		CG_MissileHitWall( es->weapon, 0, cent->lerpOrigin, beamDir, IMPACTSOUND_DEFAULT );
 	}
 		break;
 

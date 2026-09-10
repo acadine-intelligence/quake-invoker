@@ -10,6 +10,8 @@ static snapshot_t snapshot;
 static refEntity_t entities[64];
 static int entityCount, lightCount, hudCount, checks;
 static int clientCommandCount;
+static int cooldownBars;
+static float cooldownFillW;
 static float intensity;
 static char hudText[256];
 static char clientCommands[8][32];
@@ -31,7 +33,14 @@ void CG_DrawPic( float x, float y, float w, float h, qhandle_t shader ) {
 	hudCount++;
 }
 void CG_FillRect( float x, float y, float w, float h, const float *color ) {
-	(void)x; (void)y; (void)w; (void)h; (void)color;
+	(void)y; (void)color;
+	// the HUD's spell recharge bars are the only thin fills at x = 120
+	if ( x == 120.0f && h == 6.0f ) {
+		cooldownBars++;
+		if ( w < 66.0f ) {
+			cooldownFillW = w;
+		}
+	}
 }
 void CG_DrawStringExt( int x, int y, const char *s, const float *color,
 	qboolean force, qboolean shadow, int w, int h, int maxChars ) {
@@ -62,6 +71,8 @@ void trap_SendClientCommand( const char *command ) {
 }
 static void frame( void ) {
 	entityCount = lightCount = hudCount = 0;
+	cooldownBars = 0;
+	cooldownFillW = 0;
 	hudText[0] = '\0';
 	CG_AddInvokeEffects();
 	CG_DrawOrbs();
@@ -231,6 +242,40 @@ int main( void ) {
 		frame();
 		CHECK( !entityCount );
 	}
+
+	// the cast confirmation drives the HUD recharge readout
+	CG_ResetInvokeEffects();
+	CHECK( cg.invokeCastTime[INVOKE_HAND_LEFT] == 0
+		&& cg.invokeCastTime[INVOKE_HAND_RIGHT] == 0 );
+	CHECK( CG_InvokeReadyFraction( cg.time, 0, 18000 ) == 1.0f );
+	CG_InvokeSpellCast( -1, SPELL_GHOST_WALK );
+	CG_InvokeSpellCast( INVOKE_HAND_LEFT, SPELL_NUM );
+	CHECK( cg.invokeCastTime[INVOKE_HAND_LEFT] == 0
+		&& cg.invokeCastTime[INVOKE_HAND_RIGHT] == 0 );
+	CG_SetInvokeHands( 0, WP_SHOTGUN, WP_NONE );
+	CG_SetInvokeSpells( 0, SPELL_NONE, SPELL_GHOST_WALK );
+	cg.snap->ps.ammo[WP_SHOTGUN] = 5;
+	CG_InvokeSpellCast( INVOKE_HAND_RIGHT, SPELL_GHOST_WALK );
+	CHECK( cg.invokeCastTime[INVOKE_HAND_RIGHT] == cg.time
+		&& cg.invokeCastSpell[INVOKE_HAND_RIGHT] == SPELL_GHOST_WALK );
+	CHECK( CG_InvokeReadyFraction( cg.time, cg.invokeCastTime[INVOKE_HAND_RIGHT],
+		18000 ) == 0.0f );
+	CHECK( CG_InvokeReadyFraction( cg.time + 9000, cg.invokeCastTime[INVOKE_HAND_RIGHT],
+		18000 ) == 0.5f );
+	CHECK( CG_InvokeReadyFraction( cg.time + 18000, cg.invokeCastTime[INVOKE_HAND_RIGHT],
+		18000 ) == 1.0f );
+	CHECK( CG_InvokeReadyFraction( cg.time + 1000, cg.invokeCastTime[INVOKE_HAND_RIGHT],
+		0 ) == 1.0f );
+	cg.time += 9000;
+	frame();
+	CHECK( cooldownBars == 2 );			// back bar plus a half-drained bar
+	CHECK( cooldownFillW > 32.0f && cooldownFillW < 34.0f );
+	CHECK( strstr( hudText, "RIGHT Ghost Walk" ) && strstr( hudText, "LEFT Shotgun [5]" ) );
+	cg.time += 9000;
+	frame();
+	CHECK( !cooldownBars );				// ready again: no bar
+	CG_ResetInvokeEffects();
+	CHECK( cg.invokeCastTime[INVOKE_HAND_RIGHT] == 0 );
 	cg.snap = NULL;
 	frame();
 	CHECK( !entityCount && !hudCount );

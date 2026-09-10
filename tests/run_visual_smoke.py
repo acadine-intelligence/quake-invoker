@@ -113,7 +113,7 @@ def main():
                      "sunstrike impact", "Invoker manual opened"):
         assert expected in console, f"Missing {expected!r} in {mod}"
     for error in ("unknown cmd orb", "unknown cmd invoke", "unknown cmd invswap",
-                  "VM_Abort", "ERROR:", "Unknown command",
+                  "unknown cmd invcast", "VM_Abort", "ERROR:", "Unknown command",
                   "May not switch teams"):
         assert error not in console, f"Unexpected {error!r} in {mod}"
     for combo, shot in (("Rocket Launcher (WQW)", "rocket_cast"),
