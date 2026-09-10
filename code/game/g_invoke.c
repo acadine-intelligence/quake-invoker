@@ -342,6 +342,9 @@ static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int hand,
 		st->sunstrikeTime = level.time + 1750;
 		break;
 	default:
+		// reachable only if a spell joins G_InvokeSpellCastable without an
+		// implementation here: stay loud instead of quietly eating mana
+		G_Printf( "unhandled invoke spell %i\n", spell );
 		return;
 	}
 	trap_SendServerCommand( ent - g_entities, va( "cp \"%s\n\"", def->name ) );

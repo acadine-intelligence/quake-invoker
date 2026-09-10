@@ -523,8 +523,7 @@ typedef struct {
 	int			invokeHandWeapons[MAX_CLIENTS][INVOKE_HANDS];
 	int			invokeHandSpells[MAX_CLIENTS][INVOKE_HANDS];
 	int			invokeHandFireTime[MAX_CLIENTS][INVOKE_HANDS];
-	int			invokeCastTime[INVOKE_HANDS];	// local: cg.time of the last confirmed cast
-	int			invokeCastSpell[INVOKE_HANDS];	// local: spell ID of that cast
+	int			invokeCastTime[SPELL_NUM];	// local: cg.time of the last confirmed cast, per spell
 
 	// auto rotating items
 	vec3_t		autoAngles;

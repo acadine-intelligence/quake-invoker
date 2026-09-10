@@ -43,7 +43,6 @@ void CG_ResetInvokeEffects( void ) {
 	memset( cg.invokeHandSpells, 0, sizeof( cg.invokeHandSpells ) );
 	memset( cg.invokeHandFireTime, 0, sizeof( cg.invokeHandFireTime ) );
 	memset( cg.invokeCastTime, 0, sizeof( cg.invokeCastTime ) );
-	memset( cg.invokeCastSpell, 0, sizeof( cg.invokeCastSpell ) );
 	cg.invokeStrikeEndTime = 0;
 	// Physical held keys survive gameplay/visual resets until key-up.
 	cg.orbChangeTime = 0;
@@ -172,8 +171,9 @@ void CG_InvokeSpellCast( int hand, int spell ) {
 		|| spell <= SPELL_NONE || spell >= SPELL_NUM ) {
 		return;
 	}
-	cg.invokeCastTime[hand] = cg.time;
-	cg.invokeCastSpell[hand] = spell;
+	// keyed by spell: the server cools down per spell, so a hand that later
+	// swaps to another spell must not inherit this clock
+	cg.invokeCastTime[spell] = cg.time;
 }
 
 // 0.0 right after a cast, 1.0 when the spell is ready again. A hand that
@@ -402,17 +402,20 @@ void CG_DrawOrbs( void ) {
 		spellDef = BG_SpellDef( spellId );
 		ready = 1.0f;
 		if ( spellDef && spellDef->cooldown > 0 ) {
-			ready = CG_InvokeReadyFraction( cg.time, cg.invokeCastTime[i],
+			// the readout is keyed by spell, not by hand: two hands holding
+			// the same spell share one recharge clock, like the server
+			ready = CG_InvokeReadyFraction( cg.time, cg.invokeCastTime[spellId],
 				spellDef->cooldown );
 		}
-		CG_DrawStringExt( 24, 176 + i * 12, CG_InvokeHandLabel(
+		CG_DrawStringExt( 24, 176 + i * 18, CG_InvokeHandLabel(
 			i == INVOKE_HAND_LEFT ? "LEFT" : "RIGHT",
 			cg.invokeHandWeapons[clientNum][i], spellId, cg.snap->ps.ammo ),
 			ready < 1.0f ? muted : white, qtrue, qtrue, 6, 10, 0 );
 		if ( ready < 1.0f ) {
-			// recharging: a full amber bar drains as the spell comes back
-			CG_FillRect( 120, 178 + i * 12, 66, 6, barBack );
-			CG_FillRect( 120, 178 + i * 12, 66 * ( 1.0f - ready ), 6, cooldownFill );
+			// recharging: a full amber bar drains as the spell comes back.
+			// It keeps its own row under the label so longer names fit.
+			CG_FillRect( 120, 187 + i * 18, 66, 6, barBack );
+			CG_FillRect( 120, 187 + i * 18, 66 * ( 1.0f - ready ), 6, cooldownFill );
 		}
 	}
 

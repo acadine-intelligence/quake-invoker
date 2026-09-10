@@ -245,26 +245,23 @@ int main( void ) {
 
 	// the cast confirmation drives the HUD recharge readout
 	CG_ResetInvokeEffects();
-	CHECK( cg.invokeCastTime[INVOKE_HAND_LEFT] == 0
-		&& cg.invokeCastTime[INVOKE_HAND_RIGHT] == 0 );
+	CHECK( cg.invokeCastTime[SPELL_GHOST_WALK] == 0 );
 	CHECK( CG_InvokeReadyFraction( cg.time, 0, 18000 ) == 1.0f );
 	CG_InvokeSpellCast( -1, SPELL_GHOST_WALK );
 	CG_InvokeSpellCast( INVOKE_HAND_LEFT, SPELL_NUM );
-	CHECK( cg.invokeCastTime[INVOKE_HAND_LEFT] == 0
-		&& cg.invokeCastTime[INVOKE_HAND_RIGHT] == 0 );
+	CHECK( cg.invokeCastTime[SPELL_GHOST_WALK] == 0 );
 	CG_SetInvokeHands( 0, WP_SHOTGUN, WP_NONE );
 	CG_SetInvokeSpells( 0, SPELL_NONE, SPELL_GHOST_WALK );
 	cg.snap->ps.ammo[WP_SHOTGUN] = 5;
 	CG_InvokeSpellCast( INVOKE_HAND_RIGHT, SPELL_GHOST_WALK );
-	CHECK( cg.invokeCastTime[INVOKE_HAND_RIGHT] == cg.time
-		&& cg.invokeCastSpell[INVOKE_HAND_RIGHT] == SPELL_GHOST_WALK );
-	CHECK( CG_InvokeReadyFraction( cg.time, cg.invokeCastTime[INVOKE_HAND_RIGHT],
+	CHECK( cg.invokeCastTime[SPELL_GHOST_WALK] == cg.time );
+	CHECK( CG_InvokeReadyFraction( cg.time, cg.invokeCastTime[SPELL_GHOST_WALK],
 		18000 ) == 0.0f );
-	CHECK( CG_InvokeReadyFraction( cg.time + 9000, cg.invokeCastTime[INVOKE_HAND_RIGHT],
+	CHECK( CG_InvokeReadyFraction( cg.time + 9000, cg.invokeCastTime[SPELL_GHOST_WALK],
 		18000 ) == 0.5f );
-	CHECK( CG_InvokeReadyFraction( cg.time + 18000, cg.invokeCastTime[INVOKE_HAND_RIGHT],
+	CHECK( CG_InvokeReadyFraction( cg.time + 18000, cg.invokeCastTime[SPELL_GHOST_WALK],
 		18000 ) == 1.0f );
-	CHECK( CG_InvokeReadyFraction( cg.time + 1000, cg.invokeCastTime[INVOKE_HAND_RIGHT],
+	CHECK( CG_InvokeReadyFraction( cg.time + 1000, cg.invokeCastTime[SPELL_GHOST_WALK],
 		0 ) == 1.0f );
 	cg.time += 9000;
 	frame();
@@ -274,8 +271,21 @@ int main( void ) {
 	cg.time += 9000;
 	frame();
 	CHECK( !cooldownBars );				// ready again: no bar
+
+	// switching a hand to a spell that was never cast shows it ready
+	CG_SetInvokeSpells( 0, SPELL_NONE, SPELL_SUNSTRIKE );
+	cg.time += 1;
+	frame();
+	CHECK( !cooldownBars );
+
+	// two hands holding the same spell share one recharge clock
+	CG_SetInvokeSpells( 0, SPELL_GHOST_WALK, SPELL_GHOST_WALK );
+	CG_InvokeSpellCast( INVOKE_HAND_LEFT, SPELL_GHOST_WALK );
+	CHECK( cg.invokeCastTime[SPELL_GHOST_WALK] == cg.time );
+	frame();
+	CHECK( cooldownBars == 4 );			// back bar plus drain on both hands
 	CG_ResetInvokeEffects();
-	CHECK( cg.invokeCastTime[INVOKE_HAND_RIGHT] == 0 );
+	CHECK( cg.invokeCastTime[SPELL_GHOST_WALK] == 0 );
 	cg.snap = NULL;
 	frame();
 	CHECK( !entityCount && !hudCount );
