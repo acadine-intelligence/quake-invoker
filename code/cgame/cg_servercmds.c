@@ -1048,14 +1048,18 @@ static void CG_ServerCommand( void ) {
 	}
 
 	// Server-announced EMP charge: draw the ring until the burst lands.
+	// Sent to everyone, the ring is the burst's dodge cue. Argv(1) is the
+	// caster's entity number, kept for future styling.
 	if ( !strcmp( cmd, "invemp" ) ) {
-		if ( trap_Argc() == 5 ) {
+		if ( trap_Argc() == 6 ) {
 			vec3_t origin;
 
-			origin[0] = atof( CG_Argv(1) );
-			origin[1] = atof( CG_Argv(2) );
-			origin[2] = atof( CG_Argv(3) );
-			CG_InvokeEmpCharge( origin, atoi( CG_Argv(4) ) );
+			origin[0] = atof( CG_Argv(2) );
+			origin[1] = atof( CG_Argv(3) );
+			origin[2] = atof( CG_Argv(4) );
+			CG_InvokeEmpCharge( origin, atoi( CG_Argv(5) ) );
+		} else {
+			CG_Printf( "invemp: expected 6 arguments, got %i\n", trap_Argc() );
 		}
 		return;
 	}

@@ -31,8 +31,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // learns the orb slots through the "orbs" server command so it can draw
 // them; invoked weapons arrive through the STAT_WEAPONS / ammo snapshot
 // path, invoked spells through STAT_INVOKE_SPELLS, and mana through
-// STAT_INVOKE_MANA. Castable spells: Ghost Walk (invisibility for 5 s) and
-// Sunstrike (aimed strike after 1.75 s, 200-unit radius, 90 damage).
+// STAT_INVOKE_MANA. Castable spells: Ghost Walk (invisibility for 5 s),
+// Sunstrike (aimed strike after 1.75 s), EMP (charged burst after 2.5 s)
+// and Chaos Meteor.
 
 #include "g_local.h"
 #include "bg_invoke.h"
@@ -40,6 +41,14 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // Per-client invoker state, owned by the game module. Keeping this state
 // separate avoids changing the shared client layout for invocation features.
 // Shared struct edits require every dependent QVM source to be rebuilt.
+// EMP tuning: the burst is scheduled when the cast lands, announced to
+// every client, and fires EMP_CHARGE_MS later.
+#define EMP_CHARGE_MS	2500
+#define EMP_RADIUS		600
+#define EMP_DAMAGE		70
+// A held fire button with an empty mana pool must not spam the notice.
+#define INVOKE_NO_MANA_NOTICE_MS	500
+
 typedef struct {
 	int		orbSlots[INVOKE_SLOTS];	// orbType_t values, oldest first
 	invokeHands_t hands;
@@ -49,6 +58,7 @@ typedef struct {
 	vec3_t	sunstrikeOrigin;
 	int		empTime;				// level.time the EMP burst lands (0 = none)
 	vec3_t	empOrigin;
+	int		lastNoManaCp;			// level.time of the last mana notice
 } invokeState_t;
 
 static invokeState_t	g_invoke[MAX_CLIENTS];
@@ -160,6 +170,11 @@ void G_InvokeReset( gentity_t *ent ) {
 	st->ghostWalkUntil = 0;
 	st->sunstrikeTime = 0;
 	VectorClear( st->sunstrikeOrigin );
+	// a dead caster's pending EMP dies with the life, like Sunstrike:
+	// otherwise the burst lands on the respawned player's behalf
+	st->empTime = 0;
+	VectorClear( st->empOrigin );
+	st->lastNoManaCp = 0;
 	ent->client->ps.stats[STAT_INVOKE_MANA] = INVOKE_MANA_MAX;
 	G_InvokeSendOrbs( ent );
 	// broadcast, not a single send: a spawning or joining client also
@@ -347,12 +362,16 @@ static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int hand,
 		break;
 	case SPELL_EMP:
 		VectorCopy( ps->origin, st->empOrigin );
-		st->empTime = level.time + 2500;
-		// the client draws the charge ring from this until the burst.
-		// Coordinates go as integers: float varargs are not safe through
-		// this VM's print/format path.
-		trap_SendServerCommand( ent - g_entities, va( "invemp %i %i %i %i\n",
-			(int)st->empOrigin[0], (int)st->empOrigin[1], (int)st->empOrigin[2], 2500 ) );
+		st->empTime = level.time + EMP_CHARGE_MS;
+		// the charge ring draws on every client from this until the burst:
+		// it is the burst's only warning. Coordinates go as integers, float
+		// varargs are not safe through this VM's print/format path. The
+		// duration is what remains of the charge, so the ring and the burst
+		// stay in step even with command latency.
+		trap_SendServerCommand( -1, va( "invemp %i %i %i %i %i\n",
+			(int)(ent - g_entities),
+			(int)st->empOrigin[0], (int)st->empOrigin[1], (int)st->empOrigin[2],
+			st->empTime - level.time ) );
 		break;
 	case SPELL_CHAOS_METEOR:
 		VectorCopy( ps->origin, start );
@@ -438,18 +457,19 @@ static void G_InvokeEmp( gentity_t *ent, vec3_t origin ) {
 	for ( i = 0; i < level.maxclients; i++ ) {
 		targ = &g_entities[i];
 		if ( !targ->inuse || !targ->client || targ == ent || targ->health <= 0
-			|| targ->client->pers.connected != CON_CONNECTED ) {
+			|| targ->client->pers.connected != CON_CONNECTED
+			|| targ->client->ps.pm_type == PM_SPECTATOR ) {
 			continue;
 		}
 		VectorSubtract( targ->client->ps.origin, origin, diff );
-		if ( VectorLengthSquared( diff ) > 600.0f * 600.0f ) {
+		if ( VectorLengthSquared( diff ) > (float)EMP_RADIUS * EMP_RADIUS ) {
 			continue;
 		}
 		VectorCopy( diff, dir );
 		VectorNormalize( dir );
 		VectorMA( targ->client->ps.velocity, 320, dir, targ->client->ps.velocity );
 		targ->client->ps.velocity[2] += 140;
-		G_Damage( targ, ent, ent, dir, targ->client->ps.origin, 70, 0, MOD_EMP );
+		G_Damage( targ, ent, ent, dir, targ->client->ps.origin, EMP_DAMAGE, 0, MOD_EMP );
 	}
 }
 
@@ -533,8 +553,12 @@ static void G_InvokeFireHand( gentity_t *ent, invokeState_t *st, int hand,
 			def->cooldown, &spell );
 		if ( result != INVOKE_FIRE_OK ) {
 			if ( result == INVOKE_FIRE_NO_MANA ) {
-				trap_SendServerCommand( ent - g_entities,
-					va( "cp \"%s: not enough mana\n\"", def->name ) );
+				// a held fire button must not spam the notice every frame
+				if ( level.time - st->lastNoManaCp >= INVOKE_NO_MANA_NOTICE_MS ) {
+					st->lastNoManaCp = level.time;
+					trap_SendServerCommand( ent - g_entities,
+						va( "cp \"%s: not enough mana\n\"", def->name ) );
+				}
 			}
 			return;
 		}
