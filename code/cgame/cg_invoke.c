@@ -440,25 +440,25 @@ void CG_InvokeIceField( centity_t *cent ) {
 	if ( bloom < 0.3f ) {
 		bloom = 0.3f;
 	}
-	pulse = 0.5f + 0.15f * sin( cg.time * 0.004f );
+	pulse = 0.7f + 0.2f * sin( cg.time * 0.004f );
 	phase = ( cg.time % 4000 ) * ( 2.0f * M_PI / 4000.0f );
 	for ( i = 0; i < ICE_FIELD_OUTER_STEPS; i++ ) {
 		float a = phase * 0.25f + i * ( 2.0f * M_PI / ICE_FIELD_OUTER_STEPS );
 
 		p[0] = cent->lerpOrigin[0] + 160 * bloom * cos( a );
 		p[1] = cent->lerpOrigin[1] + 160 * bloom * sin( a );
-		p[2] = cent->lerpOrigin[2] + 3 + 2 * sin( phase + i );
-		CG_InvokeWorldSprite( p, i % 2 ? 5.0f : 7.0f, col, pulse * bloom, a * 180 / M_PI );
+		p[2] = cent->lerpOrigin[2] + 5 + 2 * sin( phase + i );
+		CG_InvokeWorldSprite( p, ( i % 2 ) ? 9.0f : 13.0f, col, pulse * bloom, a * 180 / M_PI );
 	}
 	for ( i = 0; i < ICE_FIELD_INNER_STEPS; i++ ) {
 		float a = -phase * 0.5f + i * ( 2.0f * M_PI / ICE_FIELD_INNER_STEPS );
 
 		p[0] = cent->lerpOrigin[0] + 88 * bloom * cos( a );
 		p[1] = cent->lerpOrigin[1] + 88 * bloom * sin( a );
-		p[2] = cent->lerpOrigin[2] + 6;
-		CG_InvokeWorldSprite( p, 4.0f, col, pulse * 0.5f * bloom, a * 180 / M_PI );
+		p[2] = cent->lerpOrigin[2] + 8;
+		CG_InvokeWorldSprite( p, 7.0f, col, pulse * 0.7f * bloom, a * 180 / M_PI );
 	}
-	trap_R_AddLightToScene( cent->lerpOrigin, 110, 0.45f, 0.7f, 1.0f );
+	trap_R_AddLightToScene( cent->lerpOrigin, 200, 0.4f, 0.7f, 1.0f );
 }
 
 // Camera-relative motes orbit below the crosshair. No game entities or

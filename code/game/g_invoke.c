@@ -439,6 +439,16 @@ static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int hand,
 		// ahead even when an enemy stands in the way
 		trap_Trace( &tr, start, NULL, NULL, end, ent->s.number, CONTENTS_SOLID );
 		VectorCopy( tr.endpos, place );
+		if ( tr.fraction < 1.0f ) {
+			// keep the ring's center clear of the wall the ray hit, so
+			// the field cannot sit half inside geometry
+			vec3_t	hitOffset;
+
+			VectorSubtract( tr.endpos, start, hitOffset );
+			if ( VectorLengthSquared( hitOffset ) > 64 * 64 ) {
+				VectorMA( place, -64, forward, place );
+			}
+		}
 		G_InvokePlaceIceWall( ent, place );
 		break;
 	}
