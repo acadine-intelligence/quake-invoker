@@ -1034,6 +1034,11 @@ static void CG_AddCEntity( centity_t *cent ) {
 			CG_InvokeForgeSpirit( cent );
 			break;
 		}
+		// portal ends draw their linked rings here too
+		if ( cent->currentState.generic1 == INVOKE_FX_PORTAL ) {
+			CG_InvokePortal( cent );
+			break;
+		}
 		CG_General( cent );
 		break;
 	case ET_PLAYER:

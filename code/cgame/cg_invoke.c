@@ -492,6 +492,35 @@ void CG_InvokeIceField( centity_t *cent ) {
 	trap_R_AddLightToScene( cent->lerpOrigin, 200, 0.4f, 0.7f, 1.0f );
 }
 
+// Portal Pair: a face-on ring in the portal's own plane. End A runs a warm
+// current, end B a cool one, so a pair reads as two linked doors.
+void CG_InvokePortal( centity_t *cent ) {
+	const vec4_t colA = { 1.0f, 0.55f, 0.18f, 1.0f };
+	const vec4_t colB = { 0.35f, 0.65f, 1.0f, 1.0f };
+	const vec4_t *col = cent->currentState.frame ? &colB : &colA;
+	float phase = ( cg.time % 2000 ) * ( 2.0f * M_PI / 2000.0f );
+	float pulse = 0.65f + 0.25f * sin( cg.time * 0.006f );
+	vec3_t right, up, p;
+	int i;
+
+	AngleVectors( cent->currentState.apos.trBase, NULL, right, up );
+	for ( i = 0; i < PORTAL_RING_STEPS; i++ ) {
+		float a = phase + i * ( 2.0f * M_PI / PORTAL_RING_STEPS );
+
+		VectorMA( cent->lerpOrigin, 30.0f * cos( a ), right, p );
+		VectorMA( p, 30.0f * sin( a ), up, p );
+		CG_InvokeWorldSprite( p, 6.0f, *col, pulse, a * 180 / M_PI + cg.time * 0.1f );
+	}
+	for ( i = 0; i < PORTAL_INNER_STEPS; i++ ) {
+		float a = -phase * 1.6f + i * ( 2.0f * M_PI / PORTAL_INNER_STEPS );
+
+		VectorMA( cent->lerpOrigin, 13.0f * cos( a ), right, p );
+		VectorMA( p, 13.0f * sin( a ), up, p );
+		CG_InvokeWorldSprite( p, 4.0f, *col, pulse * 0.8f, a * 180 / M_PI );
+	}
+	trap_R_AddLightToScene( cent->lerpOrigin, 140, (*col)[0], (*col)[1], (*col)[2] );
+}
+
 // Forge Spirit: a small flame wisp of orbiting sprites plus a warm light.
 // The server moves the entity; this draw only follows its origin.
 void CG_InvokeForgeSpirit( centity_t *cent ) {

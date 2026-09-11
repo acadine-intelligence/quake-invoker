@@ -396,7 +396,7 @@ int main( void ) {
 
 		for ( i = 0; i < bg_numInvocations; i++ ) {
 			inv = &bg_invocations[i];
-			if ( inv->kind == INVOKE_KIND_SPELL ) {
+			if ( inv->kind == INVOKE_KIND_SPELL || inv->kind == INVOKE_KIND_PORTAL ) {
 				def = BG_SpellDef( inv->spell );
 				if ( !def || strcmp( def->name, inv->name ) || def->cost <= 0
 					|| def->cooldown <= 0 || def->cost > INVOKE_MANA_MAX ) {
@@ -410,7 +410,33 @@ int main( void ) {
 				tableOk = 0;
 			}
 		}
-		CHECK( tableOk && seen == 10, "all ten classic spells have matching definitions" );
+		CHECK( tableOk && seen == 11, "all classic spell recipes and the portal pair have matching definitions" );
+	}
+
+	// the portal pair refuses ends that are too close, and the exit
+	// transform preserves entry speed along the exit face
+	{
+		vec3_t a = { 100, 100, 100 }, b, out;
+
+		VectorSet( b, a[0] + PORTAL_MIN_SEPARATION - 1, a[1], a[2] );
+		CHECK( BG_InvokePortalTooClose( a, b ), "ends closer than the floor are refused" );
+		VectorSet( b, a[0] + PORTAL_MIN_SEPARATION, a[1], a[2] );
+		CHECK( !BG_InvokePortalTooClose( a, b ), "the floor distance itself is fine" );
+		VectorSet( b, a[0] + PORTAL_MIN_SEPARATION + 40, a[1], a[2] );
+		CHECK( !BG_InvokePortalTooClose( a, b ), "far ends are fine" );
+
+		VectorSet( b, 0, 1, 0 );		// exit face normal
+		VectorSet( a, 600, 0, 0 );	// entry velocity into the face
+		BG_InvokePortalExitVelocity( a, b, out );
+		CHECK( out[0] == 0.0f && out[1] == 600.0f && out[2] == 0.0f,
+			"a fast entry exits along the face at full speed" );
+		VectorSet( a, 2000, 0, 0 );
+		BG_InvokePortalExitVelocity( a, b, out );
+		CHECK( out[1] == PORTAL_EXIT_SPEED_CAP, "runaway speed is capped" );
+		VectorSet( a, 0, 0, 0 );
+		BG_InvokePortalExitVelocity( a, b, out );
+		CHECK( out[0] == 0.0f && out[1] == 0.0f && out[2] == 0.0f,
+			"a standstill exits at a standstill" );
 	}
 
 	printf( "%s (%d failures)\n", fails ? "TESTS FAILED" : "ALL TESTS PASSED", fails );

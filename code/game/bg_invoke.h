@@ -48,6 +48,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define INVOKE_FX_ICEWALL		3
 #define INVOKE_FX_FORGE_SPIRIT	4
 #define INVOKE_FX_SPIRIT_BOLT	5
+#define INVOKE_FX_PORTAL		6
 
 #define INVOKE_MOVE_W		0x01
 #define INVOKE_MOVE_A		0x02
@@ -81,6 +82,7 @@ typedef enum {
 	SPELL_ALACRITY,
 	SPELL_CHAOS_METEOR,
 	SPELL_SUNSTRIKE,
+	SPELL_PORTAL,
 	SPELL_NUM
 } spellType_t;
 
@@ -152,7 +154,16 @@ typedef struct {
 void BG_InvokeShredClear( shredState_t *shred );
 void BG_InvokeShredApply( shredState_t *shred, int now );
 qboolean BG_InvokeShredActive( const shredState_t *shred, int now );
-float BG_InvokeShredScale( const shredState_t *shred, int now );
+float		BG_InvokeShredScale( const shredState_t *shred, int now );
+
+// Portal Pair (QEW): shared tuning plus the pair and exit rules.
+#define PORTAL_RANGE			600
+#define PORTAL_EXIT_OFFSET		24
+#define PORTAL_EXIT_SPEED_CAP	700
+#define PORTAL_MIN_SEPARATION	48
+#define PORTAL_TRAVEL_COOLDOWN_MS 500
+qboolean	BG_InvokePortalTooClose( const vec3_t a, const vec3_t b );
+void		BG_InvokePortalExitVelocity( const vec3_t inVel, const vec3_t exitNormal, vec3_t out );
 
 // Server-authoritative hand assignment and per-item timing. nextFireTime is
 // indexed by weapon so duplicate weapons in both hands necessarily share it;

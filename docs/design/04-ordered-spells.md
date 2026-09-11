@@ -1,6 +1,6 @@
 # Ordered invocation and classic spells
 
-Status: ordered recipes, the shared mana pool, and all ten classic spells implemented and verified in-engine (2026-09-11). Invoking resolves the exact orb sequence against the 27-entry table; weapon recipes equip a hand; Ghost Walk (Q,Q,W), Sunstrike (E,E,E), EMP (W,W,W), Chaos Meteor (W,E,E), Tornado (Q,W,W), Deafening Blast (Q,W,E), Cold Snap (Q,Q,Q), Ice Wall (Q,Q,E), Alacrity (W,W,E), and Forge Spirit (Q,E,E) equip a hand and cast on that hand's fire button, spending mana and starting their cooldown; the portal and any reserved entries report "not castable yet" without granting anything. This target supersedes the order-independent recipe target in `01-invoker-mechanics.md`; that document and `05-dual-hands.md` describe the earlier slices.
+Status: ordered recipes, the shared mana pool, and all ten classic spells implemented and verified in-engine (2026-09-11). Invoking resolves the exact orb sequence against the 27-entry table; weapon recipes equip a hand; Ghost Walk (Q,Q,W), Sunstrike (E,E,E), EMP (W,W,W), Chaos Meteor (W,E,E), Tornado (Q,W,W), Deafening Blast (Q,W,E), Cold Snap (Q,Q,Q), Ice Wall (Q,Q,E), Alacrity (W,W,E), and Forge Spirit (Q,E,E) equip a hand and cast on that hand's fire button, spending mana and starting their cooldown; the Portal Pair (Q,E,W) places a two-way shortcut in two shots; reserved entries report "not castable yet" without granting anything. This target supersedes the order-independent recipe target in `01-invoker-mechanics.md`; that document and `05-dual-hands.md` describe the earlier slices.
 
 ## Requested behavior
 
@@ -116,6 +116,24 @@ Mana must be introduced as a real server-owned resource. EMP targets in the test
 Implemented numbers (2026-09-10, extended 2026-09-11): one 100-point pool per client, regenerated at 4 points per second while alive on the server. Ghost Walk costs 25 with an 18 s cooldown; Sunstrike 45/24 s; EMP 45/30 s; Chaos Meteor 55/35 s; Tornado 40/25 s; Deafening Blast 45/30 s. All cooldowns run on server time (`level.time`), and the HUD reads the pool through `STAT_INVOKE_MANA`. Tornado lifts everyone inside its 170-unit radius to at least 210 units/s of upward speed and fades at solid walls or after 1.5 s. Deafening Blast bursts on contact or after 900 ms, shoving (260 units/s plus lift) and damaging (50) inside a 350-unit radius, and disarming weapon fire for 3 s. The disarm holds both hand weapons and the classic selected weapon (`ps.weaponTime`), while spell casting stays available; respawn clears it. Cold Snap costs 35 with a 20 s cooldown; it marks a 1000-unit aim and holds a 5 s debuff. Any damage except the trigger's own freezes the chilled player for 250 ms and adds 15 damage, at most once per 900 ms; the bonus is credited to the hit that set it off. The freeze locks movement, jumps, weapon fire and hand casts for its 250 ms; ground speed and the pm_type both ride player state the client predicts, so it does not desync. A recast while the debuff holds refreshes it but cannot shorten the victim's 900 ms floor. Alacrity costs 30 with a 20 s cooldown and grants an 8 s haste window: move speed, weapon fire intervals and hand cooldowns lift by 1.3 through the engine's haste powerup, and classic weapon damage is multiplied by 1.3 while it holds (spell damage is not). Recasts refresh the window; it never stacks, and a fresh life starts without it. The engine's own haste dressing also applies: the caster shows the haste smoke trail and animation speed-up while the window holds, so a Ghost Walk caster becomes visible for the window's duration. Forge Spirit costs 60 with a 40 s cooldown and summons a 60-health companion for 30 s; it hovers near its caster, fires a 9-damage bolt every 1.3 s at the nearest enemy client in sight, and a bolt hit leaves the victim's armor absorbing at 0.6x for 4 s, refreshed by later hits. Two spirits live per caster; a summon at the cap dismisses the oldest.
 
 All temporary effects need bounded entity counts and explicit lifetimes. Friendly-fire policy must follow the selected game mode. The first test opponents can be local clients or bots; a full roguelite enemy roster is outside this spell implementation.
+
+### Chosen implementation (2026-09-11)
+
+- Rendering: the original-effect surface, chosen for this pass. The
+  view-through renderer stays a later, separate target.
+- Slot replacement: shots alternate replacement of A and B (A on the
+  first shot, B on the second, A again on the third). A refused shot
+  leaves the existing pair unchanged.
+- Placement: a 600-unit aim ray that must hit the static world (movers
+  and the sky are refused) with player-hull room at the face; ends must
+  stay 48 units apart. A refused shot spends nothing.
+- Cost: 15 mana per shot, 1.5 s between shots on the firing hand.
+- Traversal: exits 24 units clear of the far face, speed preserved and
+  capped at 700 along that face's direction, with a 500 ms per-client
+  re-entry guard; a blocked exit refuses travel instead of embedding
+  the player.
+- Lifecycle: the pair is kept across invoke and hand-swap, and removed
+  on death, respawn, disconnect, or map change.
 
 ## Portal behavior and safety
 

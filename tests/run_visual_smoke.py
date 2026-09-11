@@ -120,7 +120,9 @@ def main():
                      "invoked Cold Snap (QQQ)", "cast Cold Snap (-35 mana)",
                      "cast Ice Wall (-40 mana)",
                      "invoked Alacrity (WWE)", "cast Alacrity (-30 mana)",
-                     "invoked Forge Spirit (QEE)", "cast Forge Spirit (-60 mana)"):
+                     "invoked Forge Spirit (QEE)", "cast Forge Spirit (-60 mana)",
+                     "invoked Portal Pair (QEW)", "cast Portal Pair (-15 mana)",
+                     "placed portal A", "placed portal B", "portal pair connected"):
         assert expected in console, f"Missing {expected!r} in {mod}"
     for error in ("unknown cmd orb", "unknown cmd invoke", "unknown cmd invswap",
                   "unknown cmd invcast", "unknown cmd invemp", "unhandled invoke spell",
@@ -138,7 +140,8 @@ def main():
                         ("Cold Snap (QQQ)", "coldsnap_cast"),
                         ("Ice Wall (QQE)", "icewall_cast"),
                         ("Alacrity (WWE)", "alacrity_cast"),
-                        ("Forge Spirit (QEE)", "forge_spirit")):
+                        ("Forge Spirit (QEE)", "forge_spirit"),
+                        ("Portal Pair (QEW)", "portal_a")):
         assert console.index("invoked " + combo) < console.index(
             f"Wrote screenshots/{shot}.tga"), "Screenshot preceded server confirmation"
     assert console.index("sunstrike impact") < console.index(
@@ -148,6 +151,8 @@ def main():
     assert console.index("deafening blast burst") < console.index(
         "Wrote screenshots/deafen_after.tga"), "Burst missing before the last blast shot"
     assert_menu_fits(mod / "screenshots/invoker_manual.tga")
+    assert console.index("placed portal B") < console.index("portal travel"), \
+        "Traversal happened before the pair was complete"
     names = ("empty", "colors", "rocket_cast", "swapped_left", "rocket_ready", "lightning_cast",
              "dual_before", "left_fired", "right_firing", "both_after", "spell_attempt",
              "ghost_equipped", "ghost_cast",
@@ -161,7 +166,7 @@ def main():
              "coldsnap_cast",
              "icewall_cast", "icewall_field",
              "effects_off", "spectator", "respawn", "alacrity_cast", "forge_spirit",
-             "ingame_menu", "invoker_manual",
+             "portal_a", "portal_b", "portal_travel", "ingame_menu", "invoker_manual",
              "back_to_game")
     screenshots = []
     for name in names:

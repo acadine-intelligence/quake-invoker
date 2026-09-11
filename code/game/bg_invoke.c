@@ -44,7 +44,7 @@ const invocation_t bg_invocations[] = {
 	{ INVOKE_KIND_SPELL,	WP_NONE,			0,	SPELL_TORNADO,		"Tornado",			"QWW" },
 	{ INVOKE_KIND_SPELL,	WP_NONE,			0,	SPELL_DEAFENING_BLAST,	"Deafening Blast",	"QWE" },
 	{ INVOKE_KIND_WEAPON,	WP_SHOTGUN,			15,	SPELL_NONE,			"Shotgun",			"QEQ" },
-	{ INVOKE_KIND_PORTAL,	WP_NONE,			0,	SPELL_NONE,			"Portal Pair",		"QEW" },
+	{ INVOKE_KIND_PORTAL,	WP_NONE,			0,	SPELL_PORTAL,		"Portal Pair",		"QEW" },
 	{ INVOKE_KIND_SPELL,	WP_NONE,			0,	SPELL_FORGE_SPIRIT,	"Forge Spirit",		"QEE" },
 	{ INVOKE_KIND_WEAPON,	WP_GAUNTLET,		-1,	SPELL_NONE,			"Gauntlet",			"WQQ" },
 	{ INVOKE_KIND_WEAPON,	WP_ROCKET_LAUNCHER,	15,	SPELL_NONE,			"Rocket Launcher",	"WQW" },
@@ -81,7 +81,8 @@ const spellDef_t bg_spells[] = {
 	{ "EMP",			45,		30000 },
 	{ "Alacrity",		30,		20000 },
 	{ "Chaos Meteor",	55,		35000 },
-	{ "Sunstrike",		45,		24000 }
+	{ "Sunstrike",		45,		24000 },
+	{ "Portal Pair",	15,		1500 }
 };
 typedef char bg_invoke_spell_table_fits[( ARRAY_LEN( bg_spells ) == SPELL_NUM ) ? 1 : -1];
 
@@ -441,6 +442,38 @@ int BG_InvokePackedHands( const invokeHands_t *hands ) {
 int BG_InvokePackedSpells( const invokeHands_t *hands ) {
 	return BG_InvokeHandSpell( hands, INVOKE_HAND_LEFT )
 		| ( BG_InvokeHandSpell( hands, INVOKE_HAND_RIGHT ) << 4 );
+}
+
+/*
+==============
+BG_InvokePortalTooClose
+
+Portal ends closer than PORTAL_MIN_SEPARATION are refused: an exit pressed
+against its own entrance would bounce the traveller straight back.
+==============
+*/
+qboolean BG_InvokePortalTooClose( const vec3_t a, const vec3_t b ) {
+	vec3_t delta;
+
+	VectorSubtract( a, b, delta );
+	return VectorLengthSquared( delta ) < ( PORTAL_MIN_SEPARATION * PORTAL_MIN_SEPARATION );
+}
+
+/*
+==============
+BG_InvokePortalExitVelocity
+
+Exits keep the entry speed along the exit face's normal, capped so a long
+chain of portals cannot compound into runaway velocity.
+==============
+*/
+void BG_InvokePortalExitVelocity( const vec3_t inVel, const vec3_t exitNormal, vec3_t out ) {
+	float speed = (float)sqrt( inVel[0] * inVel[0] + inVel[1] * inVel[1] + inVel[2] * inVel[2] );
+
+	if ( speed > PORTAL_EXIT_SPEED_CAP ) {
+		speed = PORTAL_EXIT_SPEED_CAP;
+	}
+	VectorScale( exitNormal, speed, out );
 }
 
 int BG_InvokeWeaponCooldown( int weapon ) {

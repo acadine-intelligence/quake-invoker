@@ -98,6 +98,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define FORGE_SPIRIT_SIGHT		600
 #define FORGE_SPIRIT_FIRE_MS	1300
 #define FORGE_SPIRIT_THINK_MS	50
+#define PORTAL_FACE_CLEARANCE	4		// portal plane sits this far off the surface
+#define PORTAL_NOTICE_MS		1500	// throttle for placement refusal notices
+#define PORTAL_THINK_MS			1000
 
 typedef struct {
 	int		orbSlots[INVOKE_SLOTS];	// orbType_t values, oldest first
@@ -113,6 +116,9 @@ typedef struct {
 	chillState_t	chill;			// Cold Snap debuff on this client
 	slowState_t		slow;			// Ice Wall slow on this client
 	shredState_t	shred;			// Forge Spirit armor shred on this client
+	int		portalNextSlot;		// 0/1: which end the next portal shot replaces
+	int		lastPortalCp;		// level.time of the last placement notice
+	int		portalTravelUntil;	// re-entry guard after a traversal
 } invokeState_t;
 
 static invokeState_t	g_invoke[MAX_CLIENTS];
@@ -252,6 +258,11 @@ void G_InvokeReset( gentity_t *ent ) {
 	VectorClear( st->empOrigin );
 	st->lastNoManaCp = 0;
 	st->disarmedUntil = 0;
+	// a respawn takes its portal pair with it and clears the travel guard
+	G_InvokeDismissPortals( ent );
+	st->portalNextSlot = 0;
+	st->lastPortalCp = 0;
+	st->portalTravelUntil = 0;
 	// a fresh life starts without Alacrity's haste window
 	ent->client->ps.powerups[PW_HASTE] = 0;
 	ent->client->ps.stats[STAT_INVOKE_MANA] = INVOKE_MANA_MAX;
@@ -259,6 +270,255 @@ void G_InvokeReset( gentity_t *ent ) {
 	// broadcast, not a single send: a spawning or joining client also
 	// needs every other player's hands
 	G_InvokeBroadcastHands();
+}
+
+/*
+==============
+G_InvokeFindPortalEnd
+
+The owner's portal end for a slot (0 = A, 1 = B), or NULL.
+==============
+*/
+static gentity_t *G_InvokeFindPortalEnd( gentity_t *owner, int slot ) {
+	int i;
+
+	for ( i = 0; i < level.num_entities; i++ ) {
+		gentity_t *e = &g_entities[i];
+
+		if ( !e->inuse || e->parent != owner || !e->classname ) {
+			continue;
+		}
+		if ( !strcmp( e->classname, "invoke_portal" ) && e->s.frame == slot ) {
+			return e;
+		}
+	}
+	return NULL;
+}
+
+/*
+==============
+G_InvokeFreePortalEnd
+
+Severs the link, then frees the end. The partner survives as a lone
+portal: visible, but moving nobody until a new shot connects it.
+==============
+*/
+static void G_InvokeFreePortalEnd( gentity_t *self ) {
+	if ( self->enemy && self->enemy->inuse ) {
+		self->enemy->enemy = NULL;
+	}
+	G_FreeEntity( self );
+}
+
+/*
+==============
+G_InvokePortalNotice
+
+Throttled refusal notice so a held fire button cannot spam centerprint.
+==============
+*/
+static void G_InvokePortalNotice( gentity_t *ent, invokeState_t *st, const char *msg ) {
+	if ( level.time - st->lastPortalCp < PORTAL_NOTICE_MS ) {
+		return;
+	}
+	st->lastPortalCp = level.time;
+	trap_SendServerCommand( ent - g_entities, va( "cp \"%s\n\"", msg ) );
+}
+
+/*
+==============
+G_InvokePortalAim
+
+Anchors the aim ray on a static world surface, away from sky and movers,
+with room for the player hull at the face and distance from the end that
+stays. place and normal are optional outputs.
+==============
+*/
+static qboolean G_InvokePortalAim( gentity_t *ent, vec3_t place, vec3_t normal ) {
+	static vec3_t hullMins = { -15, -15, -24 };
+	static vec3_t hullMaxs = { 15, 15, 32 };
+	trace_t tr, fit;
+	vec3_t start, end, forward, anchor;
+	gentity_t *other;
+	invokeState_t *st = G_InvokeState( ent );
+
+	VectorCopy( ent->client->ps.origin, start );
+	start[2] += ent->client->ps.viewheight;
+	AngleVectors( ent->client->ps.viewangles, forward, NULL, NULL );
+	VectorMA( start, PORTAL_RANGE, forward, end );
+	trap_Trace( &tr, start, NULL, NULL, end, ent->s.number, MASK_SOLID );
+	if ( tr.fraction >= 1.0f ) {
+		G_InvokePortalNotice( ent, st, "no surface for a portal" );
+		return qfalse;
+	}
+	if ( tr.entityNum != ENTITYNUM_WORLD ) {
+		G_InvokePortalNotice( ent, st, "portals need a static surface" );
+		return qfalse;
+	}
+	if ( tr.surfaceFlags & SURF_SKY ) {
+		G_InvokePortalNotice( ent, st, "cannot anchor a portal in the sky" );
+		return qfalse;
+	}
+	VectorMA( tr.endpos, PORTAL_FACE_CLEARANCE, tr.plane.normal, anchor );
+	trap_Trace( &fit, anchor, hullMins, hullMaxs, anchor, ent->s.number, MASK_PLAYERSOLID );
+	if ( fit.startsolid ) {
+		G_InvokePortalNotice( ent, st, "no room to stand at that portal" );
+		return qfalse;
+	}
+	// the end that stays put must not sit on top of the new one
+	other = G_InvokeFindPortalEnd( ent, !st->portalNextSlot );
+	if ( other && BG_InvokePortalTooClose( anchor, other->r.currentOrigin ) ) {
+		G_InvokePortalNotice( ent, st, "too close to the other portal" );
+		return qfalse;
+	}
+	if ( place ) {
+		VectorCopy( anchor, place );
+	}
+	if ( normal ) {
+		VectorCopy( tr.plane.normal, normal );
+	}
+	return qtrue;
+}
+
+/*
+==============
+G_InvokePortalThink
+
+Owns one end's lifetime: the pair follows its owner, and a freed partner
+leaves this end inert instead of stale.
+==============
+*/
+void G_InvokePortalThink( gentity_t *self ) {
+	gentity_t *owner = self->parent;
+
+	if ( !owner || !owner->inuse || !owner->client ) {
+		G_InvokeFreePortalEnd( self );
+		return;
+	}
+	if ( self->enemy && !self->enemy->inuse ) {
+		self->enemy = NULL;
+	}
+	self->nextthink = level.time + PORTAL_THINK_MS;
+}
+
+/*
+==============
+G_InvokePortalTouch
+
+Anyone who reaches a connected face travels to its partner: exit clear of
+the partner's surface, entry speed preserved along its facing, and a
+per-client cooldown so the exit cannot fall straight back in.
+==============
+*/
+void G_InvokePortalTouch( gentity_t *self, gentity_t *other, trace_t *trace ) {
+	static vec3_t hullMins = { -15, -15, -24 };
+	static vec3_t hullMaxs = { 15, 15, 32 };
+	vec3_t noAngles = { 9999999.0f, 0, 0 };
+	gentity_t *dest = self->enemy;
+	invokeState_t *st;
+	trace_t fit;
+	vec3_t exit, out;
+
+	(void)trace;
+	if ( !other->client || !dest || !dest->inuse ) {
+		return;
+	}
+	if ( other->client->sess.sessionTeam == TEAM_SPECTATOR || other->health <= 0 ) {
+		return;
+	}
+	st = G_InvokeState( other );
+	if ( level.time < st->portalTravelUntil ) {
+		return;
+	}
+	VectorMA( dest->r.currentOrigin, PORTAL_EXIT_OFFSET, dest->movedir, exit );
+	trap_Trace( &fit, exit, hullMins, hullMaxs, exit, other->s.number, MASK_PLAYERSOLID );
+	if ( fit.startsolid ) {
+		// an unsafe exit refuses travel instead of embedding the player
+		return;
+	}
+	// preserve the entry speed, aimed out of the far face
+	BG_InvokePortalExitVelocity( other->client->ps.velocity, dest->movedir, out );
+	st->portalTravelUntil = level.time + PORTAL_TRAVEL_COOLDOWN_MS;
+	// no-angles mode: keep the view, then set the exit velocity ourselves
+	TeleportPlayer( other, exit, noAngles );
+	VectorCopy( out, other->client->ps.velocity );
+	trap_SendServerCommand( other - g_entities, "print \"portal travel\\n\"" );
+}
+
+/*
+==============
+G_InvokeDismissPortals
+
+Removes every portal end this client owns. Death, respawn, disconnect and
+map restarts all end up here.
+==============
+*/
+void G_InvokeDismissPortals( gentity_t *ent ) {
+	int i;
+
+	for ( i = 0; i < level.num_entities; i++ ) {
+		gentity_t *e = &g_entities[i];
+
+		if ( e->inuse && e->parent == ent && e->classname
+			&& !strcmp( e->classname, "invoke_portal" ) ) {
+			G_InvokeFreePortalEnd( e );
+		}
+	}
+}
+
+/*
+==============
+G_InvokePlacePortal
+
+The QEW cast: records the next end at the aim anchor, alternates which
+end the following shot replaces, and links the pair when both exist.
+==============
+*/
+static void G_InvokePlacePortal( gentity_t *ent, invokeState_t *st ) {
+	vec3_t place, normal, angles;
+	gentity_t *old, *other, *end;
+	int slot;
+
+	if ( !G_InvokePortalAim( ent, place, normal ) ) {
+		// the fire path vetted this shot earlier in the same frame; a
+		// failure here means the view moved mid-tick
+		return;
+	}
+	slot = st->portalNextSlot;
+	old = G_InvokeFindPortalEnd( ent, slot );
+	if ( old ) {
+		G_InvokeFreePortalEnd( old );
+	}
+	end = G_Spawn();
+	end->classname = "invoke_portal";
+	end->parent = ent;
+	end->s.frame = slot;
+	end->s.eType = ET_GENERAL;
+	end->s.generic1 = INVOKE_FX_PORTAL;
+	VectorCopy( normal, end->movedir );
+	G_SetOrigin( end, place );
+	vectoangles( normal, angles );
+	VectorCopy( angles, end->s.apos.trBase );
+	end->s.apos.trType = TR_STATIONARY;
+	// a thin trigger shell: travellers that reach the face step through
+	VectorSet( end->r.mins, -16, -16, -16 );
+	VectorSet( end->r.maxs, 16, 16, 16 );
+	end->r.contents = CONTENTS_TRIGGER;
+	end->touch = G_InvokePortalTouch;
+	end->think = G_InvokePortalThink;
+	end->nextthink = level.time + PORTAL_THINK_MS;
+	trap_LinkEntity( end );
+
+	other = G_InvokeFindPortalEnd( ent, !slot );
+	if ( other ) {
+		end->enemy = other;
+		other->enemy = end;
+	}
+	st->portalNextSlot = !slot;
+	trap_SendServerCommand( ent - g_entities, va( "print \"placed portal %s\\n\"", slot ? "B" : "A" ) );
+	if ( other ) {
+		trap_SendServerCommand( ent - g_entities, "print \"portal pair connected\\n\"" );
+	}
 }
 
 /*
@@ -311,6 +571,7 @@ static qboolean G_InvokeSpellCastable( int spell ) {
 	case SPELL_CHAOS_METEOR:
 	case SPELL_TORNADO:
 	case SPELL_DEAFENING_BLAST:
+	case SPELL_PORTAL:
 		return qtrue;
 	default:
 		return qfalse;
@@ -355,7 +616,7 @@ void Cmd_Invoke_f( gentity_t *ent ) {
 		trap_SendServerCommand( ent - g_entities, "cp \"Pick three orbs with D/W/A first\n\"" );
 		return;
 	}
-	if ( inv->kind == INVOKE_KIND_SPELL ) {
+	if ( inv->kind == INVOKE_KIND_SPELL || inv->kind == INVOKE_KIND_PORTAL ) {
 		if ( !G_InvokeSpellCastable( inv->spell ) ) {
 			trap_SendServerCommand( ent - g_entities, va( "cp \"%s: not castable yet\n\"", inv->name ) );
 			trap_SendServerCommand( ent - g_entities, va( "print \"%s: not castable yet\n\"", inv->name ) );
@@ -545,6 +806,9 @@ static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int hand,
 		start[2] += ps->viewheight;
 		AngleVectors( ps->viewangles, forward, NULL, NULL );
 		fire_invoke_blast( ent, start, forward );
+		break;
+	case SPELL_PORTAL:
+		G_InvokePlacePortal( ent, st );
 		break;
 	default:
 		// reachable only if a spell joins G_InvokeSpellCastable without an
@@ -1226,6 +1490,11 @@ static void G_InvokeFireHand( gentity_t *ent, invokeState_t *st, int hand,
 		// a hand holding a spell casts instead of firing a gun
 		spell = BG_InvokeHandSpell( &st->hands, hand );
 		if ( spell == SPELL_NONE || !G_InvokeSpellCastable( spell ) ) {
+			return;
+		}
+		// a portal shot that cannot anchor spends nothing: refuse before
+		// the mana and cooldown gate
+		if ( spell == SPELL_PORTAL && !G_InvokePortalAim( ent, NULL, NULL ) ) {
 			return;
 		}
 		def = BG_SpellDef( spell );

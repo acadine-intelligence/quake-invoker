@@ -1323,6 +1323,8 @@ void CG_InvokeSpellCast( int hand, int spell );
 #define EMP_RING_STEPS 24		// sprites that draw the EMP charge ring
 #define DEAFEN_BURST_MSEC 700	// lifetime of the deafening blast rings
 #define TORNADO_SPRITES 16		// sprites in the tornado column
+#define PORTAL_RING_STEPS 16	// sprites around a portal end
+#define PORTAL_INNER_STEPS 8
 #define ICE_FIELD_OUTER_STEPS 20	// sprites around an ice wall field
 #define ICE_FIELD_INNER_STEPS 10	// inner ring of the same field
 #define FORGE_SPIRIT_STEPS 6		// sprites in a forge spirit wisp
@@ -1341,6 +1343,7 @@ void CG_InvokeSlow( int duration );
 float CG_InvokeSlowFraction( void );
 float CG_InvokeAlacrityFraction( void );
 void CG_InvokeIceField( centity_t *cent );
+void CG_InvokePortal( centity_t *cent );
 void CG_InvokeTornado( centity_t *cent );
 void CG_InvokeBlastMissile( centity_t *cent );
 void CG_InvokeForgeSpirit( centity_t *cent );

@@ -443,6 +443,7 @@ void G_InvokeTornadoThink( gentity_t *self );
 void G_InvokeBlastThink( gentity_t *self );
 void G_InvokeBlastImpact( gentity_t *ent, trace_t *trace );
 void G_InvokeSpiritBoltImpact( gentity_t *ent, trace_t *trace );
+void G_InvokeDismissPortals( gentity_t *ent );
 float G_InvokeArmorScale( gentity_t *ent );
 void BroadcastTeamChange( gclient_t *client, int oldTeam );
 void SetTeam( gentity_t *ent, const char *s );

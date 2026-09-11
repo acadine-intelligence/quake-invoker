@@ -28,6 +28,28 @@ void trap_R_AddRefEntityToScene( const refEntity_t *ent ) {
 	assert( entityCount < 64 );
 	entities[entityCount++] = *ent;
 }
+// angle vectors stand-in: enough for the draw paths that orient effects
+void AngleVectors( const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up ) {
+	float cy, sy, cp, sp, cr, sr;
+
+	cy = cos( angles[1] * M_PI / 180.0 ); sy = sin( angles[1] * M_PI / 180.0 );
+	cp = cos( angles[0] * M_PI / 180.0 ); sp = sin( angles[0] * M_PI / 180.0 );
+	cr = cos( angles[2] * M_PI / 180.0 ); sr = sin( angles[2] * M_PI / 180.0 );
+	if ( forward ) {
+		forward[0] = cp * cy; forward[1] = cp * sy; forward[2] = -sp;
+	}
+	if ( right ) {
+		right[0] = -sr * sp * cy + cr * sy;
+		right[1] = -sr * sp * sy - cr * cy;
+		right[2] = -sr * cp;
+	}
+	if ( up ) {
+		up[0] = cr * sp * cy + sr * sy;
+		up[1] = cr * sp * sy - sr * cy;
+		up[2] = cr * cp;
+	}
+}
+
 void trap_R_AddLightToScene( const vec3_t org, float value, float r, float g, float b ) {
 	(void)org; (void)r; (void)g; (void)b;
 	lightCount++;
@@ -566,6 +588,29 @@ int main( void ) {
 			&& lightCount == 1 );
 		CHECK( entities[0].reType == RT_SPRITE && entities[0].radius > 0 );
 		CHECK( entities[0].origin[0] != entities[1].origin[0] );
+	}
+
+	// a portal end draws its ring in the portal's own plane plus one light
+	{
+		centity_t cent;
+
+		memset( &cent, 0, sizeof( cent ) );
+		cent.lerpOrigin[0] = 300;
+		cent.lerpOrigin[1] = 64;
+		cent.lerpOrigin[2] = 40;
+		CG_ResetInvokeEffects();
+		entityCount = lightCount = 0;
+		CG_InvokePortal( &cent );
+		CHECK( entityCount == PORTAL_RING_STEPS + PORTAL_INNER_STEPS && lightCount == 1 );
+		CHECK( entities[0].reType == RT_SPRITE && entities[0].radius > 0 );
+		CHECK( entities[0].origin[0] != entities[1].origin[0]
+			|| entities[0].origin[1] != entities[1].origin[1]
+			|| entities[0].origin[2] != entities[1].origin[2] );
+		cent.currentState.frame = 1;
+		CG_ResetInvokeEffects();
+		entityCount = lightCount = 0;
+		CG_InvokePortal( &cent );
+		CHECK( entityCount == PORTAL_RING_STEPS + PORTAL_INNER_STEPS && lightCount == 1 );
 	}
 
 	// the alacrity window reads the player state and draws a named bar
