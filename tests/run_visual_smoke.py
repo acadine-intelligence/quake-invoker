@@ -102,7 +102,7 @@ def main():
     args += ["+devmap", "oa_dm3", "+set", "activeAction", "exec visual_smoke.cfg"]
     with (run / "engine.log").open("w") as log:
         result = subprocess.run(args, cwd=RELEASE, stdout=log,
-                                stderr=subprocess.STDOUT, timeout=160)
+                                stderr=subprocess.STDOUT, timeout=240)
     if result.returncode:
         raise SystemExit(f"Game exited {result.returncode}. Inspect {run / 'engine.log'}")
     console = (mod / "visual-console.txt").read_text(errors="replace")

@@ -323,6 +323,7 @@ static void G_InvokePortalNotice( gentity_t *ent, invokeState_t *st, const char 
 	}
 	st->lastPortalCp = level.time;
 	trap_SendServerCommand( ent - g_entities, va( "cp \"%s\n\"", msg ) );
+	trap_SendServerCommand( ent - g_entities, va( "print \"portal refused: %s\n\"", msg ) );
 }
 
 /*
@@ -338,7 +339,7 @@ static qboolean G_InvokePortalAim( gentity_t *ent, vec3_t place, vec3_t normal )
 	static vec3_t hullMins = { -15, -15, -24 };
 	static vec3_t hullMaxs = { 15, 15, 32 };
 	trace_t tr, fit;
-	vec3_t start, end, forward, anchor;
+	vec3_t start, end, forward, anchor, exit;
 	gentity_t *other;
 	invokeState_t *st = G_InvokeState( ent );
 
@@ -360,7 +361,10 @@ static qboolean G_InvokePortalAim( gentity_t *ent, vec3_t place, vec3_t normal )
 		return qfalse;
 	}
 	VectorMA( tr.endpos, PORTAL_FACE_CLEARANCE, tr.plane.normal, anchor );
-	trap_Trace( &fit, anchor, hullMins, hullMaxs, anchor, ent->s.number, MASK_PLAYERSOLID );
+	// travellers exit a full offset off the surface, so the hull must fit
+	// there; testing at the face itself would always clip the surface
+	VectorMA( tr.endpos, PORTAL_EXIT_OFFSET, tr.plane.normal, exit );
+	trap_Trace( &fit, exit, hullMins, hullMaxs, exit, ent->s.number, MASK_PLAYERSOLID );
 	if ( fit.startsolid ) {
 		G_InvokePortalNotice( ent, st, "no room to stand at that portal" );
 		return qfalse;
@@ -368,7 +372,10 @@ static qboolean G_InvokePortalAim( gentity_t *ent, vec3_t place, vec3_t normal )
 	// the end that stays put must not sit on top of the new one
 	other = G_InvokeFindPortalEnd( ent, !st->portalNextSlot );
 	if ( other && BG_InvokePortalTooClose( anchor, other->r.currentOrigin ) ) {
-		G_InvokePortalNotice( ent, st, "too close to the other portal" );
+		vec3_t delta;
+		VectorSubtract( anchor, other->r.currentOrigin, delta );
+		G_InvokePortalNotice( ent, st, va( "too close to the other portal (%.0f units apart)",
+			(float)sqrt( VectorLengthSquared( delta ) ) ) );
 		return qfalse;
 	}
 	if ( place ) {
@@ -442,7 +449,7 @@ void G_InvokePortalTouch( gentity_t *self, gentity_t *other, trace_t *trace ) {
 	// no-angles mode: keep the view, then set the exit velocity ourselves
 	TeleportPlayer( other, exit, noAngles );
 	VectorCopy( out, other->client->ps.velocity );
-	trap_SendServerCommand( other - g_entities, "print \"portal travel\\n\"" );
+	trap_SendServerCommand( other - g_entities, "print \"portal travel\n\"" );
 }
 
 /*
@@ -515,9 +522,10 @@ static void G_InvokePlacePortal( gentity_t *ent, invokeState_t *st ) {
 		other->enemy = end;
 	}
 	st->portalNextSlot = !slot;
-	trap_SendServerCommand( ent - g_entities, va( "print \"placed portal %s\\n\"", slot ? "B" : "A" ) );
+	trap_SendServerCommand( ent - g_entities, va( "print \"placed portal %s (%i %i %i)\n\"",
+		slot ? "B" : "A", (int)place[0], (int)place[1], (int)place[2] ) );
 	if ( other ) {
-		trap_SendServerCommand( ent - g_entities, "print \"portal pair connected\\n\"" );
+		trap_SendServerCommand( ent - g_entities, "print \"portal pair connected\n\"" );
 	}
 }
 

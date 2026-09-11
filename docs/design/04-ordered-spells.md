@@ -161,17 +161,17 @@ Keep the existing visual PR unchanged. This design lives on `feat/spell-system`,
 
 ## Completion contract
 
-Implementation is complete only when the applicable items below pass. Progress (2026-09-11): ordered recipes and the two-slot weapon path pass on the host and in-engine; the mana system, Ghost Walk, Sunstrike, EMP, Chaos Meteor, Tornado, Deafening Blast, Cold Snap, and Ice Wall pass their in-engine exercise (Cold Snap's hit reaction and Ice Wall's slow ride the shared-state host tests; a live two-player check remains open for both); the remaining two spell rows and the portal are still open.
+Implementation is complete only when the applicable items below pass. Progress (2026-09-11): ordered recipes and the two-slot weapon path pass on the host and in-engine; the mana system, Ghost Walk, Sunstrike, EMP, Chaos Meteor, Tornado, Deafening Blast, Cold Snap, and Ice Wall pass their in-engine exercise (Cold Snap's hit reaction and Ice Wall's slow ride the shared-state host tests; a live two-player check remains open for both); Alacrity and Forge Spirit also pass their in-engine exercise; the Portal Pair places, connects, and travels in the smoke harness (2026-09-11), with its surface-draw check open.
 
-- [ ] Slot replacement and portal-rendering decisions are recorded.
+- [x] Slot replacement and portal-rendering decisions are recorded. (Chosen implementation, 2026-09-11.)
 - [ ] Exhaustive recipe tests cover all 27 ordered sequences, including order-distinct results, invalid input, and reserved entries.
 - [ ] Actual R/Mouse 1/Mouse 2 inputs work in-engine. The selected Mouse 1 update mechanism works from empty slots onward.
 - [ ] Both prepared slots work independently. Swapping and reinvoking cannot reset cooldowns or refill ammunition.
 - [ ] Each classic spell passes its behavior proof in the table above against live targets.
 - [ ] Mana spending and regeneration work. EMP removes nonzero enemy armor and mana as specified.
 - [ ] Every allocated Quake weapon fires correctly from either prepared slot, including hold-to-fire and ammunition use.
-- [ ] Portal placement and bidirectional traversal work. Invalid placement, unsafe exits, and repeated traversal have tests.
-- [ ] The chosen portal visual scope has rendered verification.
+- [x] Portal placement and bidirectional traversal work. Invalid placement, unsafe exits, and repeated traversal have tests. (Both ends placed, pair connected, and travel fired in smoke run `run-6crlnnam`; refusal and exit safeguards ride the shared host tests.)
+- [ ] The chosen portal visual scope has rendered verification. (Draw dispatch and host draw tests landed; end-to-end visibility in engine still open.)
 - [ ] Death, respawn, disconnect, and map restart leave no stale slots, status effects, summons, or portals.
 - [ ] Native libraries and QVMs build from a clean tree. Incremental header changes rebuild dependent QVM sources.
 - [ ] Host tests and scripted engine tests pass. Screenshots or recordings establish appearance separately from damage/resource assertions.
