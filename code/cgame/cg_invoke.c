@@ -202,6 +202,25 @@ float CG_InvokeSlowFraction( void ) {
 	return ( cg.invokeSlowEndTime - cg.time ) / (float)span;
 }
 
+// Alacrity: the caster's haste window, read straight from the player
+// state, so expiry, death and respawn clear the bar with no extra
+// plumbing. A "Speed" pickup rides the same slot and lights the bar.
+float CG_InvokeAlacrityFraction( void ) {
+	int end;
+
+	if ( !cg.snap ) {
+		return 0.0f;
+	}
+	end = cg.snap->ps.powerups[PW_HASTE];
+	if ( end <= cg.time ) {
+		return 0.0f;
+	}
+	if ( end - cg.time > ALACRITY_MS ) {
+		return 1.0f;
+	}
+	return ( end - cg.time ) / (float)ALACRITY_MS;
+}
+
 static void CG_InvokeFlashStart( void ) {
 	memcpy( cg.invokedSlots, cg.orbSlots, sizeof( cg.invokedSlots ) );
 	cg.invokeEffectEndTime = cg.time + INVOKE_FLASH_MSEC;
@@ -765,6 +784,18 @@ void CG_DrawOrbs( void ) {
 		CG_DrawStringExt( 302, 316, "SLOWED", slowCol, qtrue, qtrue, 6, 10, 0 );
 		CG_FillRect( 268, 329, 104, 5, slowBack );
 		CG_FillRect( 268, 329, 104 * left, 5, slowCol );
+	}
+
+	// alacrity: this player's own haste window. The speed and fire-rate
+	// lift is felt directly; the bar names it and shows the time left.
+	if ( cg.snap && cg.snap->ps.powerups[PW_HASTE] > cg.time ) {
+		const vec4_t alacCol = { 1.0f, 0.83f, 0.25f, 1.0f };
+		const vec4_t alacBack = { 0.09f, 0.13f, 0.21f, 0.90f };
+		float left = CG_InvokeAlacrityFraction();
+
+		CG_DrawStringExt( 296, 340, "ALACRITY", alacCol, qtrue, qtrue, 6, 10, 0 );
+		CG_FillRect( 268, 353, 104, 5, alacBack );
+		CG_FillRect( 268, 353, 104 * left, 5, alacCol );
 	}
 	trap_R_SetColor( NULL );
 }

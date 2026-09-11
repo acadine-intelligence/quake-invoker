@@ -118,7 +118,8 @@ def main():
                      "invoked Deafening Blast (QWE)", "cast Deafening Blast (-45 mana)",
                      "deafening blast burst",
                      "invoked Cold Snap (QQQ)", "cast Cold Snap (-35 mana)",
-                     "cast Ice Wall (-40 mana)"):
+                     "cast Ice Wall (-40 mana)",
+                     "invoked Alacrity (WWE)", "cast Alacrity (-30 mana)"):
         assert expected in console, f"Missing {expected!r} in {mod}"
     for error in ("unknown cmd orb", "unknown cmd invoke", "unknown cmd invswap",
                   "unknown cmd invcast", "unknown cmd invemp", "unhandled invoke spell",
@@ -134,7 +135,8 @@ def main():
                         ("Tornado (QWW)", "tornado_fly"),
                         ("Deafening Blast (QWE)", "deafen_fly"),
                         ("Cold Snap (QQQ)", "coldsnap_cast"),
-                        ("Ice Wall (QQE)", "icewall_cast")):
+                        ("Ice Wall (QQE)", "icewall_cast"),
+                        ("Alacrity (WWE)", "alacrity_cast")):
         assert console.index("invoked " + combo) < console.index(
             f"Wrote screenshots/{shot}.tga"), "Screenshot preceded server confirmation"
     assert console.index("sunstrike impact") < console.index(
@@ -156,7 +158,7 @@ def main():
              "deafen_fly", "deafen_burst", "deafen_after",
              "coldsnap_cast",
              "icewall_cast", "icewall_field",
-             "effects_off", "spectator", "respawn", "ingame_menu", "invoker_manual",
+             "effects_off", "spectator", "respawn", "alacrity_cast", "ingame_menu", "invoker_manual",
              "back_to_game")
     screenshots = []
     for name in names:

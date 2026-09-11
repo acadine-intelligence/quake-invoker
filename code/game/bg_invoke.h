@@ -125,6 +125,18 @@ void BG_InvokeSlowClear( slowState_t *slow );
 void BG_InvokeSlowRefresh( slowState_t *slow, int now );
 qboolean BG_InvokeSlowActive( const slowState_t *slow, int now );
 
+// Alacrity rides the engine's haste powerup: move speed, weapon fire
+// intervals and hand cooldowns already read PW_HASTE in the shared code.
+// A cast moves the expiry stamp forward and never pulls it back, so
+// recasts refresh the window, cannot stack it, and a longer window from a
+// Speed item survives the cast. Weapon damage composes with quad through
+// the scale helper, which the host tests exercise.
+#define ALACRITY_MS			8000
+#define ALACRITY_DAMAGE_SCALE	1.3f
+
+void BG_InvokeHasteExtend( int *powerupEnd, int now );
+float BG_InvokeWeaponDamageScale( float base, int hasteActive );
+
 // Server-authoritative hand assignment and per-item timing. nextFireTime is
 // indexed by weapon so duplicate weapons in both hands necessarily share it;
 // nextCastTime is indexed by spell the same way. mana is one pool for both

@@ -543,6 +543,33 @@ int main( void ) {
 		CHECK( entities[0].reType == RT_SPRITE && entities[0].radius > 0 );
 		CHECK( entities[0].origin[0] != entities[1].origin[0] );
 	}
+
+	// the alacrity window reads the player state and draws a named bar
+	{
+		CG_ResetInvokeEffects();
+		cg.snap->ps.powerups[PW_HASTE] = 0;
+		frame();
+		CHECK( CG_InvokeAlacrityFraction() == 0.0f );
+		CHECK( fills_at( 268, 353 ) == 0 && str_x_at( "ALACRITY" ) == -1 );
+		cg.snap->ps.powerups[PW_HASTE] = cg.time + ALACRITY_MS;
+		CHECK( CG_InvokeAlacrityFraction() > 0.9f );
+		frame();
+		CHECK( strstr( hudText, "ALACRITY" ) != NULL );
+		CHECK( fills_at( 268, 353 ) >= 2 );	// bar back + bar fill
+		CHECK( str_x_at( "ALACRITY" ) == 296 );	// 8 chars x 6 px, centered
+		cg.time += ALACRITY_MS / 2;
+		CHECK( CG_InvokeAlacrityFraction() > 0.4f && CG_InvokeAlacrityFraction() < 0.6f );
+		cg.time += ALACRITY_MS / 2;
+		frame();
+		CHECK( CG_InvokeAlacrityFraction() == 0.0f );
+		CHECK( strstr( hudText, "ALACRITY" ) == NULL );
+		CHECK( fills_at( 268, 353 ) == 0 && str_x_at( "ALACRITY" ) == -1 );
+
+		// a window longer than ALACRITY_MS (a Speed item) clamps to full
+		cg.snap->ps.powerups[PW_HASTE] = cg.time + 2 * ALACRITY_MS;
+		CHECK( CG_InvokeAlacrityFraction() == 1.0f );
+		cg.snap->ps.powerups[PW_HASTE] = 0;
+	}
 	cg.snap = NULL;
 	frame();
 	CHECK( !entityCount && !hudCount );

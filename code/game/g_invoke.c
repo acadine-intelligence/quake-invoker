@@ -230,6 +230,8 @@ void G_InvokeReset( gentity_t *ent ) {
 	VectorClear( st->empOrigin );
 	st->lastNoManaCp = 0;
 	st->disarmedUntil = 0;
+	// a fresh life starts without Alacrity's haste window
+	ent->client->ps.powerups[PW_HASTE] = 0;
 	ent->client->ps.stats[STAT_INVOKE_MANA] = INVOKE_MANA_MAX;
 	G_InvokeSendOrbs( ent );
 	// broadcast, not a single send: a spawning or joining client also
@@ -279,6 +281,7 @@ static qboolean G_InvokeSpellCastable( int spell ) {
 	switch ( spell ) {
 	case SPELL_COLD_SNAP:
 	case SPELL_ICE_WALL:
+	case SPELL_ALACRITY:
 	case SPELL_GHOST_WALK:
 	case SPELL_SUNSTRIKE:
 	case SPELL_EMP:
@@ -458,6 +461,12 @@ static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int hand,
 		if ( ps->powerups[PW_INVIS] < st->ghostWalkUntil ) {
 			ps->powerups[PW_INVIS] = st->ghostWalkUntil;
 		}
+		break;
+	case SPELL_ALACRITY:
+		// Alacrity rides the engine's haste slot: speed, fire interval
+		// and hand cooldowns already read PW_HASTE. The extend helper
+		// refreshes a live window without stacking or shortening it.
+		BG_InvokeHasteExtend( &ps->powerups[PW_HASTE], level.time );
 		break;
 	case SPELL_SUNSTRIKE:
 		VectorCopy( ps->origin, start );

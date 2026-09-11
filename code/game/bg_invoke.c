@@ -163,6 +163,31 @@ qboolean BG_InvokeSlowActive( const slowState_t *slow, int now ) {
 
 /*
 ==============
+BG_InvokeHasteExtend / BG_InvokeWeaponDamageScale
+
+Alacrity's rules, kept here so the host tests and the server run the same
+code. The haste powerup's expiry stamp is the whole state: a cast moves it
+forward and never pulls it back, so recasts refresh the window and cannot
+stack. The damage scale multiplies the base (quad) factor so the two
+buffs compose instead of replacing each other; only classic weapons pass
+through it, spells do not.
+==============
+*/
+void BG_InvokeHasteExtend( int *powerupEnd, int now ) {
+	if ( *powerupEnd < now + ALACRITY_MS ) {
+		*powerupEnd = now + ALACRITY_MS;
+	}
+}
+
+float BG_InvokeWeaponDamageScale( float base, int hasteActive ) {
+	if ( hasteActive ) {
+		return base * ALACRITY_DAMAGE_SCALE;
+	}
+	return base;
+}
+
+/*
+==============
 BG_PushOrb
 ==============
 */

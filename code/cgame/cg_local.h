@@ -1337,6 +1337,7 @@ void CG_InvokeChill( int duration );
 float CG_InvokeChillFraction( void );
 void CG_InvokeSlow( int duration );
 float CG_InvokeSlowFraction( void );
+float CG_InvokeAlacrityFraction( void );
 void CG_InvokeIceField( centity_t *cent );
 void CG_InvokeTornado( centity_t *cent );
 void CG_InvokeBlastMissile( centity_t *cent );

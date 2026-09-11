@@ -346,6 +346,30 @@ int main( void ) {
 		CHECK( !BG_InvokeSlowActive( &slow, 1300 ), "a cleared slow is gone" );
 	}
 
+	// alacrity: the haste window refreshes, never stacks or shortens
+	{
+		int haste = 0;
+
+		BG_InvokeHasteExtend( &haste, 1000 );
+		CHECK( haste == 1000 + ALACRITY_MS, "a cast sets the haste window" );
+		BG_InvokeHasteExtend( &haste, 1500 );
+		CHECK( haste == 1500 + ALACRITY_MS,
+			"a recast refreshes it to the new cast" );
+		haste = 1000 + 30 * 1000;	// a Speed item's longer window
+		BG_InvokeHasteExtend( &haste, 1000 );
+		CHECK( haste == 1000 + 30 * 1000, "a longer window survives a cast" );
+	}
+
+	// alacrity: haste multiplies classic weapon damage, with or without quad
+	{
+		CHECK( BG_InvokeWeaponDamageScale( 1.0f, 0 ) == 1.0f,
+			"no haste means no weapon damage bonus" );
+		CHECK( BG_InvokeWeaponDamageScale( 1.0f, 1 ) == ALACRITY_DAMAGE_SCALE,
+			"haste scales weapon damage by its factor" );
+		CHECK( BG_InvokeWeaponDamageScale( 3.0f, 1 ) == 3.0f * ALACRITY_DAMAGE_SCALE,
+			"haste multiplies the quad factor instead of replacing it" );
+	}
+
 	// every classic spell recipe maps to its definition, and no other
 	// recipe carries a spell ID
 	{
