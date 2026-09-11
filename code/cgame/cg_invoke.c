@@ -391,6 +391,17 @@ void CG_InvokeDeafenBurst( vec3_t origin ) {
 	cg.invokeDeafenEndTime = cg.time + DEAFEN_BURST_MSEC;
 }
 
+// An ET_MISSILE carries an invoke marker only when it is one of ours: our
+// spell missiles fire as WP_ROCKET_LAUNCHER and set the marker. Missionpack
+// prox mines carry their team (1 = red, 2 = blue) in generic1, so the
+// weapon check keeps them out of the invoke effects.
+qboolean CG_InvokeMissileMarker( const entityState_t *s, int marker ) {
+	if ( s->weapon == WP_ROCKET_LAUNCHER && s->generic1 == marker ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
 // Tornado: a twisting column of sprites rigged to the missile entity, so
 // the vortex stays glued to the real (server-side) projectile. The missile
 // carries the INVOKE_FX_TORNADO marker instead of a weapon model.

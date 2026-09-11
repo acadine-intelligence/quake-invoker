@@ -424,12 +424,12 @@ static void CG_Missile( centity_t *cent ) {
 	weapon = &cg_weapons[s1->weapon];
 
 	// invoke spell missiles: no weapon trail or model; the s.generic1
-	// marker routes them to their own effects
-	if ( s1->generic1 == INVOKE_FX_TORNADO ) {
+	// marker (with our weapon) routes them to their own effects
+	if ( CG_InvokeMissileMarker( s1, INVOKE_FX_TORNADO ) ) {
 		CG_InvokeTornado( cent );
 		return;
 	}
-	if ( s1->generic1 == INVOKE_FX_DEAFENING ) {
+	if ( CG_InvokeMissileMarker( s1, INVOKE_FX_DEAFENING ) ) {
 		CG_InvokeBlastMissile( cent );
 		return;
 	}

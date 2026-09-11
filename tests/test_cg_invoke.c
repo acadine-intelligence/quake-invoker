@@ -495,6 +495,25 @@ int main( void ) {
 		CHECK( entityCount == 4 && lightCount == 1 );
 	}
 
+	// the invoke marker requires our weapon: team values (missionpack
+	// prox mines ride generic1 as 1/2) must never claim the effects
+	{
+		entityState_t st;
+
+		memset( &st, 0, sizeof( st ) );
+		st.weapon = WP_ROCKET_LAUNCHER;
+		st.generic1 = INVOKE_FX_TORNADO;
+		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_TORNADO ) == qtrue );
+		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_DEAFENING ) == qfalse );
+		st.generic1 = INVOKE_FX_DEAFENING;
+		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_DEAFENING ) == qtrue );
+		st.weapon = 0;	// a prox mine's team rides generic1
+		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_DEAFENING ) == qfalse );
+		st.weapon = WP_ROCKET_LAUNCHER;
+		st.generic1 = 0;	// a stock rocket
+		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_TORNADO ) == qfalse );
+	}
+
 	// the slowed window drains, draws, and clears like its siblings
 	{
 		CG_ResetInvokeEffects();

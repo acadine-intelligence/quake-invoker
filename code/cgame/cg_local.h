@@ -1341,6 +1341,7 @@ float CG_InvokeAlacrityFraction( void );
 void CG_InvokeIceField( centity_t *cent );
 void CG_InvokeTornado( centity_t *cent );
 void CG_InvokeBlastMissile( centity_t *cent );
+qboolean CG_InvokeMissileMarker( const entityState_t *s, int marker );
 float CG_InvokeReadyFraction( int now, int castTime, int cooldown );
 void CG_AddInvokeEffects( void );
 void CG_DrawOrbs( void );
