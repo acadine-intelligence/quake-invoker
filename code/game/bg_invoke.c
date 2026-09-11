@@ -30,21 +30,39 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #endif
 #include "bg_invoke.h"
 
-// Slice 1 table: ten multisets of three orbs over three types.
-// counts[] is indexed by orbType_t: {NONE, QUAS, WEX, EXORT}.
-// Weapons are stock so the loop plays on unmodified content; the design
-// intent per combo is in docs/design/01-invoker-mechanics.md.
+// Ordered recipe table: the exact sequence of the three held orbs
+// (oldest first) selects the invocation. Ten classic spells, nine stock
+// weapons, one portal pair, seven reserved slots. Weapons are castable;
+// spells and the portal report "not castable yet" until their own passes
+// land. Mapping rationale: docs/design/04-ordered-spells.md.
 const invocation_t bg_invocations[] = {
-	{ {0,3,0,0}, WP_GAUNTLET,			-1,	"Gauntlet",			"QQQ" },
-	{ {0,0,3,0}, WP_MACHINEGUN,			100,"Machinegun",		"WWW" },
-	{ {0,0,0,3}, WP_BFG,				10,	"BFG10K",			"EEE" },
-	{ {0,2,1,0}, WP_PLASMAGUN,			60,	"Plasma Gun",		"QQW" },
-	{ {0,2,0,1}, WP_ROCKET_LAUNCHER,	15,	"Rocket Launcher",	"QQE" },
-	{ {0,1,2,0}, WP_GRENADE_LAUNCHER,	10,	"Grenade Launcher",	"WWQ" },
-	{ {0,0,2,1}, WP_LIGHTNING,			120,"Lightning Gun",	"WWE" },
-	{ {0,1,0,2}, WP_SHOTGUN,			15,	"Shotgun",			"EEQ" },
-	{ {0,0,1,2}, WP_RAILGUN,			10,	"Railgun",			"EEW" },
-	{ {0,1,1,1}, WP_RAILGUN,			10,	"Railgun",			"QWE" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Cold Snap",		"QQQ" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Ghost Walk",		"QQW" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Ice Wall",			"QQE" },
+	{ INVOKE_KIND_WEAPON,	WP_MACHINEGUN,			100,"Machinegun",		"QWQ" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Tornado",			"QWW" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Deafening Blast",	"QWE" },
+	{ INVOKE_KIND_WEAPON,	WP_SHOTGUN,				15,	"Shotgun",			"QEQ" },
+	{ INVOKE_KIND_PORTAL,	WP_NONE,				0,	"Portal Pair",		"QEW" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Forge Spirit",		"QEE" },
+	{ INVOKE_KIND_WEAPON,	WP_GAUNTLET,			-1,	"Gauntlet",			"WQQ" },
+	{ INVOKE_KIND_WEAPON,	WP_ROCKET_LAUNCHER,		15,	"Rocket Launcher",	"WQW" },
+	{ INVOKE_KIND_WEAPON,	WP_GRENADE_LAUNCHER,	10,	"Grenade Launcher",	"WQE" },
+	{ INVOKE_KIND_WEAPON,	WP_LIGHTNING,			120,"Lightning Gun",	"WWQ" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"EMP",				"WWW" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Alacrity",			"WWE" },
+	{ INVOKE_KIND_WEAPON,	WP_RAILGUN,				10,	"Railgun",			"WEQ" },
+	{ INVOKE_KIND_WEAPON,	WP_PLASMAGUN,			60,	"Plasma Gun",		"WEW" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Chaos Meteor",		"WEE" },
+	{ INVOKE_KIND_WEAPON,	WP_BFG,					10,	"BFG10K",			"EQQ" },
+	{ INVOKE_KIND_NONE,		WP_NONE,				0,	"Reserved",			"EQW" },
+	{ INVOKE_KIND_NONE,		WP_NONE,				0,	"Reserved",			"EQE" },
+	{ INVOKE_KIND_NONE,		WP_NONE,				0,	"Reserved",			"EWQ" },
+	{ INVOKE_KIND_NONE,		WP_NONE,				0,	"Reserved",			"EWW" },
+	{ INVOKE_KIND_NONE,		WP_NONE,				0,	"Reserved",			"EWE" },
+	{ INVOKE_KIND_NONE,		WP_NONE,				0,	"Reserved",			"EEQ" },
+	{ INVOKE_KIND_NONE,		WP_NONE,				0,	"Reserved",			"EEW" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Sunstrike",		"EEE" },
 };
 const int bg_numInvocations = ARRAY_LEN( bg_invocations );
 
@@ -88,29 +106,25 @@ BG_FindInvocation
 ==============
 */
 const invocation_t *BG_FindInvocation( const int slots[INVOKE_SLOTS] ) {
-	int		counts[ORB_NUM_TYPES];
-	int		i, held, newest;
+	char	key[INVOKE_SLOTS + 1];
+	int		i, j;
 
-	Com_Memset( counts, 0, sizeof( counts ) );
-	held = 0;
-	newest = ORB_NONE;
+	// All three orbs must be set; the sequence, oldest first, is the recipe.
 	for ( i = 0; i < INVOKE_SLOTS; i++ ) {
-		if ( slots[i] > ORB_NONE && slots[i] < ORB_NUM_TYPES ) {
-			counts[slots[i]]++;
-			held++;
-			newest = slots[i];
+		if ( slots[i] <= ORB_NONE || slots[i] >= ORB_NUM_TYPES ) {
+			return NULL;
 		}
+		key[i] = BG_OrbLetter( slots[i] );
 	}
-	if ( held == 0 ) {
-		return NULL;
-	}
-	// fill empty slots with the newest orb so one press can invoke
-	counts[newest] += INVOKE_SLOTS - held;
+	key[INVOKE_SLOTS] = '\0';
 
 	for ( i = 0; i < bg_numInvocations; i++ ) {
-		if ( bg_invocations[i].counts[ORB_QUAS] == counts[ORB_QUAS]
-			&& bg_invocations[i].counts[ORB_WEX] == counts[ORB_WEX]
-			&& bg_invocations[i].counts[ORB_EXORT] == counts[ORB_EXORT] ) {
+		for ( j = 0; j < INVOKE_SLOTS; j++ ) {
+			if ( bg_invocations[i].combo[j] != key[j] ) {
+				break;
+			}
+		}
+		if ( j == INVOKE_SLOTS && bg_invocations[i].combo[j] == '\0' ) {
 			return &bg_invocations[i];
 		}
 	}

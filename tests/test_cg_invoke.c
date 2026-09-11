@@ -114,7 +114,9 @@ int main( void ) {
 	CHECK( entityCount == 0 && lightCount == 0 && hudCount == 3 );
 	CG_SetOrbSlots( -1, ORB_NUM_TYPES, 100000 );
 	CHECK( !BG_FindInvocation( cg.orbSlots ) );
-	CG_SetOrbSlots( ORB_QUAS, ORB_WEX, ORB_EXORT );
+	// W,Q,E is the ordered Grenade Launcher recipe: a castable weapon whose
+	// slot colors satisfy the per-slot color checks below.
+	CG_SetOrbSlots( ORB_WEX, ORB_QUAS, ORB_EXORT );
 	CG_SetInvokeHands( 0, WP_SHOTGUN, WP_ROCKET_LAUNCHER );
 	frame();
 	CHECK( entityCount == 15 && !lightCount );
@@ -132,13 +134,13 @@ int main( void ) {
 	CG_InvokeWeapon( -1, WP_RAILGUN );
 	CG_InvokeWeapon( INVOKE_HAND_RIGHT, WP_NUM_WEAPONS );
 	CHECK( !cg.invokeEffectEndTime );
-	CG_InvokeWeapon( INVOKE_HAND_RIGHT, WP_RAILGUN );
+	CG_InvokeWeapon( INVOKE_HAND_RIGHT, WP_GRENADE_LAUNCHER );
 	frame();
 	CHECK( entityCount == 33 && lightCount == 1 && intensity == 160 );
 	peakColor = entities[15].shaderRGBA[0];
-	CG_SetOrbSlots( ORB_QUAS, ORB_QUAS, ORB_EXORT );
+	CG_SetOrbSlots( ORB_WEX, ORB_QUAS, ORB_WEX );
 	frame();
-	CHECK( strstr( hudText, "READY Rocket Launcher" ) && strstr( hudText, "CAST Railgun" ) );
+	CHECK( strstr( hudText, "READY Rocket Launcher" ) && strstr( hudText, "CAST Grenade Launcher" ) );
 	CHECK( strstr( hudText, "LEFT Shotgun" ) && strstr( hudText, "RIGHT Rocket Launcher" )
 		&& strstr( hudText, "R invoke RIGHT" ) );
 	CHECK( strstr( hudText, "W\n" ) && strstr( hudText, "A\n" )

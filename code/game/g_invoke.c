@@ -198,7 +198,14 @@ void Cmd_Invoke_f( gentity_t *ent ) {
 	}
 	inv = BG_FindInvocation( st->orbSlots );
 	if ( !inv ) {
-		trap_SendServerCommand( ent - g_entities, "cp \"Move with D/W/A to choose an orb\n\"" );
+		trap_SendServerCommand( ent - g_entities, "cp \"Pick three orbs with D/W/A first\n\"" );
+		return;
+	}
+	if ( inv->kind != INVOKE_KIND_WEAPON ) {
+		// Spells and the portal are not castable yet; report that instead of
+		// silently granting nothing.
+		trap_SendServerCommand( ent - g_entities, va( "cp \"%s: not castable yet\n\"", inv->name ) );
+		trap_SendServerCommand( ent - g_entities, va( "print \"%s: not castable yet\n\"", inv->name ) );
 		return;
 	}
 
