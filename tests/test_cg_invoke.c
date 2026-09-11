@@ -514,6 +514,9 @@ int main( void ) {
 		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_TORNADO ) == qfalse );
 		st.generic1 = INVOKE_FX_SPIRIT_BOLT;
 		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_SPIRIT_BOLT ) == qtrue );
+		st.weapon = WP_NONE;	// a spawn that forgets the weapon renders nothing
+		st.generic1 = INVOKE_FX_TORNADO;
+		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_TORNADO ) == qfalse );
 	}
 
 	// the slowed window drains, draws, and clears like its siblings

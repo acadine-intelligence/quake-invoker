@@ -755,7 +755,9 @@ gentity_t *fire_invoke_tornado (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->think = G_InvokeTornadoThink;
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
-	bolt->s.weapon = WP_NONE;
+	// the cgame marker gate checks this weapon id; the marker branch runs
+	// before any rocket trail or sound is drawn
+	bolt->s.weapon = WP_ROCKET_LAUNCHER;
 	bolt->s.generic1 = INVOKE_FX_TORNADO;
 	bolt->r.ownerNum = self->s.number;
 	bolt->parent = self;

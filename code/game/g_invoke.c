@@ -693,7 +693,8 @@ static void G_InvokeEmp( gentity_t *ent, vec3_t origin ) {
 		VectorNormalize( dir );
 		VectorMA( targ->client->ps.velocity, 320, dir, targ->client->ps.velocity );
 		targ->client->ps.velocity[2] += 140;
-		G_Damage( targ, ent, ent, dir, targ->client->ps.origin, EMP_DAMAGE, 0, MOD_EMP );
+		// the manual shove above is the whole displacement: no second knockback
+		G_Damage( targ, ent, ent, dir, targ->client->ps.origin, EMP_DAMAGE, DAMAGE_NO_KNOCKBACK, MOD_EMP );
 	}
 }
 
