@@ -56,18 +56,29 @@ def main():
         raise SystemExit(f"Game exited {result.returncode}. Inspect {run / 'engine.log'}")
     console = (mod / "visual-console.txt").read_text(errors="replace")
     for expected in ("orbs: Q W E", "invoked Rocket Launcher (WQW)",
-                     "invoked Lightning Gun (WWQ)", "Ice Wall: not castable yet"):
+                     "invoked Lightning Gun (WWQ)", "Ice Wall: not castable yet",
+                     "invoked Ghost Walk (QQW)", "cast Ghost Walk (-25 mana)",
+                     "invoked Sunstrike (EEE)", "cast Sunstrike (-45 mana)",
+                     "sunstrike impact"):
         assert expected in console, f"Missing {expected!r} in {mod}"
     for error in ("unknown cmd orb", "unknown cmd invoke", "unknown cmd invswap",
                   "VM_Abort", "ERROR:",
                   "May not switch teams"):
         assert error not in console, f"Unexpected {error!r} in {mod}"
     for combo, shot in (("Rocket Launcher (WQW)", "rocket_cast"),
-                        ("Lightning Gun (WWQ)", "lightning_cast")):
+                        ("Lightning Gun (WWQ)", "lightning_cast"),
+                        ("Ghost Walk (QQW)", "ghost_equipped"),
+                        ("Sunstrike (EEE)", "sun_g1")):
         assert console.index("invoked " + combo) < console.index(
             f"Wrote screenshots/{shot}.tga"), "Screenshot preceded server confirmation"
+    assert console.index("sunstrike impact") < console.index(
+        "Wrote screenshots/sunstrike_after.tga"), "Strike impact missing before final shot"
     names = ("empty", "colors", "rocket_cast", "swapped_left", "rocket_ready", "lightning_cast",
              "dual_before", "left_fired", "right_firing", "both_after", "spell_attempt",
+             "ghost_equipped", "ghost_cast",
+             "sun_g1", "sun_g2", "sun_g3", "sun_g4", "sun_g5", "sun_g6",
+             "sun_g7", "sun_g8", "sun_g9", "sun_g10", "sun_g11", "sun_g12",
+             "sunstrike_after",
              "effects_off", "spectator", "respawn")
     screenshots = []
     for name in names:

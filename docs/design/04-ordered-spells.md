@@ -1,6 +1,6 @@
 # Ordered invocation and classic spells
 
-Status: ordered recipes implemented and verified in-engine (2026-09-10). Invoking resolves the exact orb sequence against the 27-entry table; weapon recipes equip a hand, while spells, the portal, and reserved entries report "not castable yet" without granting anything. Spell behavior, mana, and the portal are not implemented yet. This target supersedes the order-independent recipe target in `01-invoker-mechanics.md`; that document and `05-dual-hands.md` describe the earlier slices.
+Status: ordered recipes, the shared mana pool, and the first two classic spells implemented and verified in-engine (2026-09-10). Invoking resolves the exact orb sequence against the 27-entry table; weapon recipes equip a hand; Ghost Walk (Q,Q,W) and Sunstrike (E,E,E) equip a hand and cast on that hand's fire button, spending mana and starting their cooldown; every other spell, the portal, and reserved entries report "not castable yet" without granting anything. The remaining eight spell behaviors are not implemented yet. This target supersedes the order-independent recipe target in `01-invoker-mechanics.md`; that document and `05-dual-hands.md` describe the earlier slices.
 
 ## Requested behavior
 
@@ -113,6 +113,8 @@ These descriptions specify distinct gameplay. They do not claim to reproduce a p
 
 Mana must be introduced as a real server-owned resource. EMP targets in the tests must start with nonzero armor and mana. A renamed grenade or a resource value drawn only on the HUD does not implement EMP.
 
+Implemented numbers (2026-09-10): one 100-point pool per client, regenerated at 4 points per second while alive on the server. Ghost Walk costs 25 with an 18 s cooldown; Sunstrike costs 45 with a 24 s cooldown. Both cooldowns run on server time (`level.time`), and the HUD reads the pool through `STAT_INVOKE_MANA`.
+
 All temporary effects need bounded entity counts and explicit lifetimes. Friendly-fire policy must follow the selected game mode. The first test opponents can be local clients or bots; a full roguelite enemy roster is outside this spell implementation.
 
 ## Portal behavior and safety
@@ -141,7 +143,7 @@ Keep the existing visual PR unchanged. This design lives on `feat/spell-system`,
 
 ## Completion contract
 
-Implementation is complete only when the applicable items below pass. Every item is currently unchecked.
+Implementation is complete only when the applicable items below pass. Progress (2026-09-10): ordered recipes and the two-slot weapon path pass on the host and in-engine; the mana system, Ghost Walk, and Sunstrike pass their first in-engine exercise; the remaining spell rows and the portal are still open.
 
 - [ ] Slot replacement and portal-rendering decisions are recorded.
 - [ ] Exhaustive recipe tests cover all 27 ordered sequences, including order-distinct results, invalid input, and reserved entries.

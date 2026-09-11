@@ -20,6 +20,7 @@ int main( void ) {
 	int ammo[WP_NUM_WEAPONS] = {0};
 	int weaponBits = 0;
 	int firedWeapon = WP_NONE;
+	int castSpell = SPELL_NONE;
 
 	reset( s );
 	CHECK( BG_FindInvocation( s ) == NULL, "empty slots invoke nothing" );
@@ -179,8 +180,21 @@ int main( void ) {
 		&& ( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) ) && ammo[WP_ROCKET_LAUNCHER] == 15,
 		"grant sets the weapon bit and starting ammo" );
 	CHECK( BG_InvokeEquipHand( &hands, INVOKE_HAND_RIGHT, WP_PLASMAGUN, 60, ammo, &weaponBits )
-		&& !( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) ) && ammo[WP_ROCKET_LAUNCHER] == 0,
-		"replacing a hand releases the old weapon" );
+		&& !( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) )
+		&& !( hands.grantedWeapons & ( 1u << WP_ROCKET_LAUNCHER ) )
+		&& ammo[WP_ROCKET_LAUNCHER] == 15,
+		"replacing a hand releases the old weapon and keeps its ammo" );
+	ammo[WP_ROCKET_LAUNCHER] = 3;
+	CHECK( BG_InvokeEquipHand( &hands, INVOKE_HAND_LEFT, WP_ROCKET_LAUNCHER, 15, ammo, &weaponBits )
+		&& ( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) )
+		&& ( hands.grantedWeapons & ( 1u << WP_ROCKET_LAUNCHER ) )
+		&& ammo[WP_ROCKET_LAUNCHER] == 3,
+		"re-invoking a released weapon never refills it in the same life" );
+	BG_InvokeHandsReset( &hands );
+	weaponBits = 0;
+	CHECK( BG_InvokeEquipHand( &hands, INVOKE_HAND_RIGHT, WP_ROCKET_LAUNCHER, 15, ammo, &weaponBits )
+		&& ammo[WP_ROCKET_LAUNCHER] == 15,
+		"a fresh life tops the weapon up again" );
 	CHECK( BG_InvokeEquipHand( &hands, INVOKE_HAND_LEFT, WP_SHOTGUN, 15, ammo, &weaponBits )
 		&& BG_InvokeEquipHand( &hands, INVOKE_HAND_RIGHT, WP_ROCKET_LAUNCHER, 15, ammo, &weaponBits )
 		&& ( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) )
@@ -204,6 +218,83 @@ int main( void ) {
 			}
 		}
 		CHECK( packs, "every weapon packs into the hand byte" );
+	}
+
+	// hands can hold spells: equip, release, pack, swap, cast
+	BG_InvokeHandsReset( &hands );
+	weaponBits = 0;
+	CHECK( !BG_InvokeEquipSpell( &hands, -1, SPELL_GHOST_WALK, ammo, &weaponBits )
+		&& !BG_InvokeEquipSpell( &hands, INVOKE_HAND_RIGHT, SPELL_NUM, ammo, &weaponBits )
+		&& !BG_InvokeEquipSpell( &hands, INVOKE_HAND_RIGHT, SPELL_NONE, ammo, &weaponBits ),
+		"invalid spell IDs are rejected" );
+	CHECK( BG_InvokeEquipHand( &hands, INVOKE_HAND_RIGHT, WP_ROCKET_LAUNCHER, 15, ammo, &weaponBits )
+		&& BG_InvokeEquipSpell( &hands, INVOKE_HAND_RIGHT, SPELL_GHOST_WALK, ammo, &weaponBits )
+		&& hands.weapon[INVOKE_HAND_RIGHT] == WP_NONE
+		&& BG_InvokeHandSpell( &hands, INVOKE_HAND_RIGHT ) == SPELL_GHOST_WALK,
+		"a spell cast replaces the weapon in the hand" );
+	CHECK( !( weaponBits & ( 1 << WP_ROCKET_LAUNCHER ) )
+		&& !( hands.grantedWeapons & ( 1u << WP_ROCKET_LAUNCHER ) )
+		&& ammo[WP_ROCKET_LAUNCHER] == 15,
+		"the replaced weapon leaves the hand and keeps its ammo" );
+	CHECK( BG_InvokePackedHands( &hands ) == 0
+		&& BG_InvokePackedSpells( &hands ) == ( SPELL_GHOST_WALK << 4 ),
+		"spells pack into their own hand stat" );
+	BG_InvokeEquipSpell( &hands, INVOKE_HAND_LEFT, SPELL_SUNSTRIKE, ammo, &weaponBits );
+	BG_InvokeSwapHands( &hands );
+	CHECK( BG_InvokeHandSpell( &hands, INVOKE_HAND_LEFT ) == SPELL_GHOST_WALK
+		&& BG_InvokeHandSpell( &hands, INVOKE_HAND_RIGHT ) == SPELL_SUNSTRIKE,
+		"swap exchanges spell hands" );
+
+	hands.mana = 60;
+	CHECK( BG_InvokeTryCast( &hands, INVOKE_HAND_RIGHT, 1000,
+		BG_SpellDef( SPELL_SUNSTRIKE )->cost, BG_SpellDef( SPELL_SUNSTRIKE )->cooldown,
+		&castSpell ) == INVOKE_FIRE_OK
+		&& castSpell == SPELL_SUNSTRIKE
+		&& hands.mana == 60.0f - BG_SpellDef( SPELL_SUNSTRIKE )->cost,
+		"a cast spends mana and reports the spell" );
+	CHECK( BG_InvokeTryCast( &hands, INVOKE_HAND_RIGHT, 1001,
+		BG_SpellDef( SPELL_SUNSTRIKE )->cost, BG_SpellDef( SPELL_SUNSTRIKE )->cooldown,
+		&castSpell ) == INVOKE_FIRE_COOLDOWN,
+		"spell cooldown blocks an early recast" );
+	CHECK( BG_InvokeTryCast( &hands, INVOKE_HAND_LEFT, 2000, 95, 1000, &castSpell ) == INVOKE_FIRE_NO_MANA,
+		"a hand without the mana cannot cast" );
+	CHECK( BG_InvokeTryCast( &hands, INVOKE_HAND_RIGHT, 1001, 0, 0, &castSpell ) == INVOKE_FIRE_INVALID,
+		"invalid cast input is rejected" );
+	BG_InvokeHandsReset( &hands );
+	CHECK( BG_InvokeTryCast( &hands, INVOKE_HAND_LEFT, 1000, 25, 1000, &castSpell ) == INVOKE_FIRE_EMPTY,
+		"an empty hand cannot cast" );
+	hands.mana = 0;
+	BG_InvokeManaRegen( &hands, 3000 );
+	CHECK( hands.mana > INVOKE_MANA_REGEN_PER_SEC - 0.5f
+		&& hands.mana < INVOKE_MANA_REGEN_PER_SEC + 0.5f,
+		"regen clamps a long frame to one second" );
+	hands.mana = INVOKE_MANA_MAX - 1;
+	BG_InvokeManaRegen( &hands, 1000 );
+	CHECK( hands.mana == INVOKE_MANA_MAX, "regen stops at the cap" );
+
+	// every classic spell recipe maps to its definition, and no other
+	// recipe carries a spell ID
+	{
+		int i, seen = 0, tableOk = 1;
+		const spellDef_t *def;
+
+		for ( i = 0; i < bg_numInvocations; i++ ) {
+			inv = &bg_invocations[i];
+			if ( inv->kind == INVOKE_KIND_SPELL ) {
+				def = BG_SpellDef( inv->spell );
+				if ( !def || strcmp( def->name, inv->name ) || def->cost <= 0
+					|| def->cooldown <= 0 || def->cost > INVOKE_MANA_MAX ) {
+					printf( "FAIL: spell recipe %s has no valid definition\n", inv->combo );
+					tableOk = 0;
+				} else {
+					seen++;
+				}
+			} else if ( inv->spell != SPELL_NONE ) {
+				printf( "FAIL: non-spell recipe %s carries a spell ID\n", inv->combo );
+				tableOk = 0;
+			}
+		}
+		CHECK( tableOk && seen == 10, "all ten classic spells have matching definitions" );
 	}
 
 	printf( "%s (%d failures)\n", fails ? "TESTS FAILED" : "ALL TESTS PASSED", fails );

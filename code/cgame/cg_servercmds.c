@@ -1024,16 +1024,17 @@ static void CG_ServerCommand( void ) {
 
 	// Quake Invoker: authoritative hand assignments are broadcast for rendering.
 	if ( !strcmp( cmd, "invhands" ) ) {
-		if ( trap_Argc() == 4 ) {
+		if ( trap_Argc() == 6 ) {
 			CG_SetInvokeHands( atoi( CG_Argv(1) ), atoi( CG_Argv(2) ), atoi( CG_Argv(3) ) );
+			CG_SetInvokeSpells( atoi( CG_Argv(1) ), atoi( CG_Argv(4) ), atoi( CG_Argv(5) ) );
 		}
 		return;
 	}
 
 	// Server-confirmed invocation starts the local combination effect.
 	if ( !strcmp( cmd, "invoked" ) ) {
-		if ( trap_Argc() == 3 ) {
-			CG_InvokeWeapon( atoi( CG_Argv(1) ), atoi( CG_Argv(2) ) );
+		if ( trap_Argc() == 4 ) {
+			CG_InvokeWeapon( atoi( CG_Argv(1) ), atoi( CG_Argv(2) ), atoi( CG_Argv(3) ) );
 		}
 		return;
 	}

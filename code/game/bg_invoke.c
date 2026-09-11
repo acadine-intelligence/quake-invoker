@@ -33,38 +33,64 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // Ordered recipe table: the exact sequence of the three held orbs
 // (oldest first) selects the invocation. Ten classic spells, nine stock
 // weapons, one portal pair, seven reserved slots. Weapons are castable;
-// spells and the portal report "not castable yet" until their own passes
-// land. Mapping rationale: docs/design/04-ordered-spells.md.
+// Ghost Walk and Sunstrike are castable; the remaining spells and the
+// portal report "not castable yet" until their own passes land. Mapping
+// rationale: docs/design/04-ordered-spells.md.
 const invocation_t bg_invocations[] = {
-	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Cold Snap",		"QQQ" },
-	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Ghost Walk",		"QQW" },
-	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Ice Wall",			"QQE" },
-	{ INVOKE_KIND_WEAPON,	WP_MACHINEGUN,			100,"Machinegun",		"QWQ" },
-	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Tornado",			"QWW" },
-	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Deafening Blast",	"QWE" },
-	{ INVOKE_KIND_WEAPON,	WP_SHOTGUN,				15,	"Shotgun",			"QEQ" },
-	{ INVOKE_KIND_PORTAL,	WP_NONE,				0,	"Portal Pair",		"QEW" },
-	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Forge Spirit",		"QEE" },
-	{ INVOKE_KIND_WEAPON,	WP_GAUNTLET,			-1,	"Gauntlet",			"WQQ" },
-	{ INVOKE_KIND_WEAPON,	WP_ROCKET_LAUNCHER,		15,	"Rocket Launcher",	"WQW" },
-	{ INVOKE_KIND_WEAPON,	WP_GRENADE_LAUNCHER,	10,	"Grenade Launcher",	"WQE" },
-	{ INVOKE_KIND_WEAPON,	WP_LIGHTNING,			120,"Lightning Gun",	"WWQ" },
-	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"EMP",				"WWW" },
-	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Alacrity",			"WWE" },
-	{ INVOKE_KIND_WEAPON,	WP_RAILGUN,				10,	"Railgun",			"WEQ" },
-	{ INVOKE_KIND_WEAPON,	WP_PLASMAGUN,			60,	"Plasma Gun",		"WEW" },
-	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Chaos Meteor",		"WEE" },
-	{ INVOKE_KIND_WEAPON,	WP_BFG,					10,	"BFG10K",			"EQQ" },
-	{ INVOKE_KIND_NONE,		WP_NONE,				0,	"Reserved",			"EQW" },
-	{ INVOKE_KIND_NONE,		WP_NONE,				0,	"Reserved",			"EQE" },
-	{ INVOKE_KIND_NONE,		WP_NONE,				0,	"Reserved",			"EWQ" },
-	{ INVOKE_KIND_NONE,		WP_NONE,				0,	"Reserved",			"EWW" },
-	{ INVOKE_KIND_NONE,		WP_NONE,				0,	"Reserved",			"EWE" },
-	{ INVOKE_KIND_NONE,		WP_NONE,				0,	"Reserved",			"EEQ" },
-	{ INVOKE_KIND_NONE,		WP_NONE,				0,	"Reserved",			"EEW" },
-	{ INVOKE_KIND_SPELL,	WP_NONE,				0,	"Sunstrike",		"EEE" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,			0,	SPELL_COLD_SNAP,	"Cold Snap",		"QQQ" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,			0,	SPELL_GHOST_WALK,	"Ghost Walk",		"QQW" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,			0,	SPELL_ICE_WALL,		"Ice Wall",			"QQE" },
+	{ INVOKE_KIND_WEAPON,	WP_MACHINEGUN,		100,SPELL_NONE,			"Machinegun",		"QWQ" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,			0,	SPELL_TORNADO,		"Tornado",			"QWW" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,			0,	SPELL_DEAFENING_BLAST,	"Deafening Blast",	"QWE" },
+	{ INVOKE_KIND_WEAPON,	WP_SHOTGUN,			15,	SPELL_NONE,			"Shotgun",			"QEQ" },
+	{ INVOKE_KIND_PORTAL,	WP_NONE,			0,	SPELL_NONE,			"Portal Pair",		"QEW" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,			0,	SPELL_FORGE_SPIRIT,	"Forge Spirit",		"QEE" },
+	{ INVOKE_KIND_WEAPON,	WP_GAUNTLET,		-1,	SPELL_NONE,			"Gauntlet",			"WQQ" },
+	{ INVOKE_KIND_WEAPON,	WP_ROCKET_LAUNCHER,	15,	SPELL_NONE,			"Rocket Launcher",	"WQW" },
+	{ INVOKE_KIND_WEAPON,	WP_GRENADE_LAUNCHER,10,	SPELL_NONE,			"Grenade Launcher",	"WQE" },
+	{ INVOKE_KIND_WEAPON,	WP_LIGHTNING,		120,SPELL_NONE,			"Lightning Gun",	"WWQ" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,			0,	SPELL_EMP,			"EMP",				"WWW" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,			0,	SPELL_ALACRITY,		"Alacrity",			"WWE" },
+	{ INVOKE_KIND_WEAPON,	WP_RAILGUN,			10,	SPELL_NONE,			"Railgun",			"WEQ" },
+	{ INVOKE_KIND_WEAPON,	WP_PLASMAGUN,		60,	SPELL_NONE,			"Plasma Gun",		"WEW" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,			0,	SPELL_CHAOS_METEOR,	"Chaos Meteor",		"WEE" },
+	{ INVOKE_KIND_WEAPON,	WP_BFG,				10,	SPELL_NONE,			"BFG10K",			"EQQ" },
+	{ INVOKE_KIND_NONE,		WP_NONE,			0,	SPELL_NONE,			"Reserved",			"EQW" },
+	{ INVOKE_KIND_NONE,		WP_NONE,			0,	SPELL_NONE,			"Reserved",			"EQE" },
+	{ INVOKE_KIND_NONE,		WP_NONE,			0,	SPELL_NONE,			"Reserved",			"EWQ" },
+	{ INVOKE_KIND_NONE,		WP_NONE,			0,	SPELL_NONE,			"Reserved",			"EWW" },
+	{ INVOKE_KIND_NONE,		WP_NONE,			0,	SPELL_NONE,			"Reserved",			"EWE" },
+	{ INVOKE_KIND_NONE,		WP_NONE,			0,	SPELL_NONE,			"Reserved",			"EEQ" },
+	{ INVOKE_KIND_NONE,		WP_NONE,			0,	SPELL_NONE,			"Reserved",			"EEW" },
+	{ INVOKE_KIND_SPELL,	WP_NONE,			0,	SPELL_SUNSTRIKE,	"Sunstrike",		"EEE" },
 };
 const int bg_numInvocations = ARRAY_LEN( bg_invocations );
+
+// The classic ten, indexed by spellType_t so a recipe only stores an ID.
+// Costs and cooldowns follow the mana model in 04-ordered-spells.md: one
+// 100-point pool regenerated at INVOKE_MANA_REGEN_PER_SEC.
+const spellDef_t bg_spells[] = {
+	{ "Empty",			0,		0 },
+	{ "Cold Snap",		35,		20000 },
+	{ "Ghost Walk",		25,		18000 },
+	{ "Ice Wall",		40,		25000 },
+	{ "Tornado",		40,		25000 },
+	{ "Deafening Blast",45,		30000 },
+	{ "Forge Spirit",	60,		40000 },
+	{ "EMP",			45,		30000 },
+	{ "Alacrity",		30,		20000 },
+	{ "Chaos Meteor",	55,		35000 },
+	{ "Sunstrike",		45,		24000 }
+};
+typedef char bg_invoke_spell_table_fits[( ARRAY_LEN( bg_spells ) == SPELL_NUM ) ? 1 : -1];
+
+const spellDef_t *BG_SpellDef( int spell ) {
+	if ( spell <= SPELL_NONE || spell >= SPELL_NUM ) {
+		return NULL;
+	}
+	return &bg_spells[spell];
+}
 
 /*
 ==============
@@ -182,60 +208,113 @@ int BG_InvokeHandWeapon( const invokeHands_t *hands, int hand ) {
 	return weapon;
 }
 
-// STAT_INVOKE_HANDS packs each hand's weapon into 4 bits; this fails to
-// compile if a new weapon ever pushes the weapon count past 16.
+int BG_InvokeHandSpell( const invokeHands_t *hands, int hand ) {
+	int spell;
+
+	if ( !hands || hand < 0 || hand >= INVOKE_HANDS ) {
+		return SPELL_NONE;
+	}
+	spell = hands->spell[hand];
+	if ( spell <= SPELL_NONE || spell >= SPELL_NUM ) {
+		return SPELL_NONE;
+	}
+	return spell;
+}
+
+// STAT_INVOKE_HANDS and STAT_INVOKE_SPELLS pack each hand's item into 4
+// bits; these fail to compile if a table ever outgrows the nibble.
 typedef char bg_invoke_weapon_pack_fits[( WP_NUM_WEAPONS <= 16 ) ? 1 : -1];
+typedef char bg_invoke_spell_pack_fits[( SPELL_NUM <= 16 ) ? 1 : -1];
+
+// A weapon lives only while a hand holds it: replacing it drops the old
+// weapon unless the other hand still holds a copy. Starting weapons are
+// never removed.
+static void BG_InvokeReleaseWeapon( invokeHands_t *hands, int hand, int oldWeapon,
+	int *weaponBits ) {
+	unsigned int oldBit;
+
+	if ( oldWeapon <= WP_NONE || oldWeapon >= WP_NUM_WEAPONS
+		|| oldWeapon == WP_MACHINEGUN || oldWeapon == WP_GAUNTLET ) {
+		return;
+	}
+	if ( oldWeapon == BG_InvokeHandWeapon( hands, hand == INVOKE_HAND_LEFT
+		? INVOKE_HAND_RIGHT : INVOKE_HAND_LEFT ) ) {
+		return;
+	}
+	oldBit = 1u << oldWeapon;
+	*weaponBits &= ~(int)oldBit;
+	hands->grantedWeapons &= ~oldBit;
+	// remaining ammo stays on the books: releasing and re-invoking a weapon
+	// must never generate ammunition
+}
 
 int BG_InvokeEquipHand( invokeHands_t *hands, int hand, int weapon,
 	int initialAmmo, int ammo[WP_NUM_WEAPONS], int *weaponBits ) {
-	unsigned int bit, oldBit;
+	unsigned int bit;
 	int old;
 
 	if ( !hands || !ammo || !weaponBits || hand < 0 || hand >= INVOKE_HANDS
 		|| weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS || initialAmmo < -1 ) {
 		return 0;
 	}
-	// a weapon lives only while a hand holds it: replacing it drops the old
-	// weapon unless the other hand still holds a copy. Starting weapons are
-	// never removed.
 	old = hands->weapon[hand];
-	if ( old > WP_NONE && old < WP_NUM_WEAPONS && old != weapon
-		&& old != WP_MACHINEGUN && old != WP_GAUNTLET
-		&& old != BG_InvokeHandWeapon( hands, hand == INVOKE_HAND_LEFT
-			? INVOKE_HAND_RIGHT : INVOKE_HAND_LEFT ) ) {
-		oldBit = 1u << old;
-		*weaponBits &= ~(int)oldBit;
-		ammo[old] = 0;
-		hands->grantedWeapons &= ~oldBit;
+	if ( old != weapon ) {
+		BG_InvokeReleaseWeapon( hands, hand, old, weaponBits );
 	}
 	bit = 1u << weapon;
-	if ( !( hands->grantedWeapons & bit ) ) {
-		*weaponBits |= (int)bit;
+	*weaponBits |= (int)bit;
+	hands->grantedWeapons |= bit;
+	if ( !( hands->grantedOnce & bit ) ) {
+		// the first invoke of this weapon in a life tops it up; later
+		// releases and re-invokes keep whatever ammo is left
 		if ( initialAmmo < 0 ) {
 			ammo[weapon] = -1;
 		} else if ( ammo[weapon] < initialAmmo ) {
 			ammo[weapon] = initialAmmo;
 		}
-		hands->grantedWeapons |= bit;
+		hands->grantedOnce |= bit;
 	}
 	hands->weapon[hand] = weapon;
+	hands->spell[hand] = SPELL_NONE;
+	return 1;
+}
+
+// Equipping a spell replaces whatever the hand held; a weapon that is now
+// held by neither hand is released exactly as in BG_InvokeEquipHand.
+int BG_InvokeEquipSpell( invokeHands_t *hands, int hand, int spell,
+	int ammo[WP_NUM_WEAPONS], int *weaponBits ) {
+	if ( !hands || !ammo || !weaponBits || hand < 0 || hand >= INVOKE_HANDS
+		|| spell <= SPELL_NONE || spell >= SPELL_NUM ) {
+		return 0;
+	}
+	BG_InvokeReleaseWeapon( hands, hand, hands->weapon[hand], weaponBits );
+	hands->weapon[hand] = WP_NONE;
+	hands->spell[hand] = spell;
 	return 1;
 }
 
 void BG_InvokeSwapHands( invokeHands_t *hands ) {
-	int weapon;
+	int weapon, spell;
 
 	if ( !hands ) {
 		return;
 	}
 	weapon = hands->weapon[INVOKE_HAND_LEFT];
+	spell = hands->spell[INVOKE_HAND_LEFT];
 	hands->weapon[INVOKE_HAND_LEFT] = hands->weapon[INVOKE_HAND_RIGHT];
+	hands->spell[INVOKE_HAND_LEFT] = hands->spell[INVOKE_HAND_RIGHT];
 	hands->weapon[INVOKE_HAND_RIGHT] = weapon;
+	hands->spell[INVOKE_HAND_RIGHT] = spell;
 }
 
 int BG_InvokePackedHands( const invokeHands_t *hands ) {
 	return BG_InvokeHandWeapon( hands, INVOKE_HAND_LEFT )
 		| ( BG_InvokeHandWeapon( hands, INVOKE_HAND_RIGHT ) << 4 );
+}
+
+int BG_InvokePackedSpells( const invokeHands_t *hands ) {
+	return BG_InvokeHandSpell( hands, INVOKE_HAND_LEFT )
+		| ( BG_InvokeHandSpell( hands, INVOKE_HAND_RIGHT ) << 4 );
 }
 
 int BG_InvokeWeaponCooldown( int weapon ) {
@@ -280,6 +359,47 @@ invokeFireResult_t BG_InvokeTryFire( invokeHands_t *hands, int hand, int now,
 	hands->nextFireTime[weapon] = now + cooldown;
 	*firedWeapon = weapon;
 	return INVOKE_FIRE_OK;
+}
+
+invokeFireResult_t BG_InvokeTryCast( invokeHands_t *hands, int hand, int now,
+	int cost, int cooldown, int *castSpell ) {
+	int spell;
+
+	if ( castSpell ) {
+		*castSpell = SPELL_NONE;
+	}
+	if ( !hands || !castSpell || hand < 0 || hand >= INVOKE_HANDS
+		|| now < 0 || cost < 0 || cooldown <= 0 ) {
+		return INVOKE_FIRE_INVALID;
+	}
+	spell = BG_InvokeHandSpell( hands, hand );
+	if ( spell == SPELL_NONE ) {
+		return INVOKE_FIRE_EMPTY;
+	}
+	if ( now < hands->nextCastTime[spell] ) {
+		return INVOKE_FIRE_COOLDOWN;
+	}
+	if ( hands->mana < cost ) {
+		return INVOKE_FIRE_NO_MANA;
+	}
+	hands->mana -= cost;
+	hands->nextCastTime[spell] = now + cooldown;
+	*castSpell = spell;
+	return INVOKE_FIRE_OK;
+}
+
+void BG_InvokeManaRegen( invokeHands_t *hands, int dtMs ) {
+	if ( !hands || dtMs < 0 ) {
+		return;
+	}
+	if ( dtMs > 1000 ) {
+		// a paused or stalled server frame must not deliver a burst
+		dtMs = 1000;
+	}
+	hands->mana += dtMs * ( INVOKE_MANA_REGEN_PER_SEC / 1000.0f );
+	if ( hands->mana > INVOKE_MANA_MAX ) {
+		hands->mana = INVOKE_MANA_MAX;
+	}
 }
 
 const char *BG_InvokeWeaponName( int weapon ) {

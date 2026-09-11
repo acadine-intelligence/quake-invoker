@@ -216,7 +216,9 @@ typedef enum {
 	STAT_DEAD_YAW,					// look this direction when dead (FIXME: get rid of?)
 	STAT_CLIENTS_READY,				// bit mask of clients wishing to exit the intermission (FIXME: configstring?)
 	STAT_MAX_HEALTH,					// health / armor limit, changeable by handicap
-	STAT_INVOKE_HANDS				// two weapon IDs plus active-mode bit
+	STAT_INVOKE_HANDS,				// two weapon IDs plus active-mode bit
+	STAT_INVOKE_SPELLS,				// two spell IDs plus active-mode bit
+	STAT_INVOKE_MANA				// 0..100 shared spell resource
 } statIndex_t;
 
 
@@ -455,7 +457,9 @@ typedef enum {
 	EV_TAUNT_FOLLOWME,
 	EV_TAUNT_GETFLAG,
 	EV_TAUNT_GUARDBASE,
-	EV_TAUNT_PATROL
+	EV_TAUNT_PATROL,
+
+	EV_SUNSTRIKE				// invoker Sunstrike: origin2 to pos.trBase beam
 
 } entity_event_t;
 
@@ -608,7 +612,8 @@ typedef enum {
 	MOD_KAMIKAZE,
 	MOD_JUICED,
 #endif
-	MOD_GRAPPLE
+	MOD_GRAPPLE,
+	MOD_SUNSTRIKE
 } meansOfDeath_t;
 
 

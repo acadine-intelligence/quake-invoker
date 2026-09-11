@@ -516,8 +516,12 @@ typedef struct {
 	int			orbChangeTime;		// cg.time when slots last changed, for HUD flash
 	int			invokedSlots[INVOKE_SLOTS];
 	int			invokeEffectEndTime;
+	vec3_t		invokeStrikeStart;
+	vec3_t		invokeStrikeEnd;
+	int			invokeStrikeEndTime;
 	int			invokeMoveKeys;
 	int			invokeHandWeapons[MAX_CLIENTS][INVOKE_HANDS];
+	int			invokeHandSpells[MAX_CLIENTS][INVOKE_HANDS];
 	int			invokeHandFireTime[MAX_CLIENTS][INVOKE_HANDS];
 
 	// auto rotating items
@@ -1295,7 +1299,9 @@ void CG_DrawActive( stereoFrame_t stereoView );
 void CG_ResetInvokeEffects( void );
 void CG_SetOrbSlots( int a, int b, int c );
 void CG_SetInvokeHands( int clientNum, int leftWeapon, int rightWeapon );
-void CG_InvokeWeapon( int hand, int weapon );
+void CG_SetInvokeSpells( int clientNum, int leftSpell, int rightSpell );
+void CG_InvokeWeapon( int hand, int weapon, int spell );
+void CG_InvokeStrikeBeam( vec3_t start, vec3_t end );
 void CG_InvokeMovementKey( int moveKey, qboolean down );
 void CG_InvokeHandFired( centity_t *cent, int hand, int weapon );
 void CG_AddInvokeEffects( void );
