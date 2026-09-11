@@ -109,10 +109,13 @@ void BG_InvokeChillClear( chillState_t *chill ) {
 }
 
 void BG_InvokeChillApply( chillState_t *chill, int now ) {
+	if ( !chill->until || now >= chill->until ) {
+		// a fresh snap may trigger on the very next hit
+		chill->nextTrigger = 0;
+	}
+	// every snap refreshes the debuff, but a live interval or freeze
+	// keeps its own end: recasts never shorten the victim's floor
 	chill->until = now + COLD_SNAP_DEBUFF_MS;
-	// a fresh snap may trigger on the very next hit; an in-flight freeze
-	// keeps its own end (a recast never extends a freeze)
-	chill->nextTrigger = 0;
 }
 
 qboolean BG_InvokeChillCanTrigger( const chillState_t *chill, int now,

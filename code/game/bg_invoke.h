@@ -95,7 +95,8 @@ const spellDef_t *BG_SpellDef( int spell );
 // the server runs. until/nextTrigger/freezeUntil are level.time stamps.
 typedef struct {
 	int	until;			// level.time the debuff ends (0 = none active)
-	int	nextTrigger;	// earliest level.time a hit may trigger a freeze
+	int	nextTrigger;	// earliest level.time a hit may trigger a freeze;
+						// one floor per victim, shared by every caster
 	int	freezeUntil;	// level.time the triggered freeze ends
 } chillState_t;
 

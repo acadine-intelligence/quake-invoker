@@ -292,6 +292,28 @@ int main( void ) {
 			"the trigger comes back after the interval" );
 		CHECK( !BG_InvokeChillCanTrigger( &chill, 1500, qtrue ),
 			"its own damage never recurses" );
+		// at the interval boundary the no-recursion rule is what blocks:
+		// the same moment with enemy damage triggers (see above)
+		CHECK( !BG_InvokeChillCanTrigger( &chill, 1000 + COLD_SNAP_TRIGGER_MS, qtrue ),
+			"own damage is what blocks at the boundary" );
+		// a recast while the debuff is live keeps the victim's floor: a
+		// second caster cannot generate a freeze sooner than 900 ms
+		{
+			chillState_t recast;
+
+			memset( &recast, 0, sizeof( recast ) );
+			BG_InvokeChillApply( &recast, 1000 );
+			BG_InvokeChillTriggered( &recast, 1000 );
+			BG_InvokeChillApply( &recast, 1200 );
+			CHECK( recast.nextTrigger == 1000 + COLD_SNAP_TRIGGER_MS,
+				"a recast keeps the trigger floor" );
+			CHECK( !BG_InvokeChillCanTrigger( &recast, 1250, qfalse ),
+				"no second freeze inside the floor" );
+			CHECK( recast.until == 1200 + COLD_SNAP_DEBUFF_MS,
+				"but the recast still refreshes the debuff" );
+			CHECK( BG_InvokeChillCanTrigger( &recast, 1000 + COLD_SNAP_TRIGGER_MS, qfalse ),
+				"the floor still elapses at 900 ms" );
+		}
 		CHECK( !BG_InvokeChillCanTrigger( &chill, 1000 + COLD_SNAP_DEBUFF_MS, qfalse ),
 			"an expired debuff cannot trigger" );
 		BG_InvokeChillClear( &chill );

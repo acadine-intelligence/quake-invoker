@@ -956,6 +956,12 @@ static void G_InvokeFireHand( gentity_t *ent, invokeState_t *st, int hand,
 	invokeFireResult_t result;
 	const spellDef_t *def;
 
+	// a frozen victim fires nothing at all while the freeze holds: Pmove's
+	// PM_FREEZE skip already holds the classic weapon, and this keeps the
+	// hand casts honest with it
+	if ( G_InvokeClientFrozen( ent ) ) {
+		return;
+	}
 	weapon = BG_InvokeHandWeapon( &st->hands, hand );
 	if ( weapon == WP_NONE ) {
 		// a hand holding a spell casts instead of firing a gun
