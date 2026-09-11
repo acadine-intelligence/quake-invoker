@@ -512,6 +512,8 @@ int main( void ) {
 		st.weapon = WP_ROCKET_LAUNCHER;
 		st.generic1 = 0;	// a stock rocket
 		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_TORNADO ) == qfalse );
+		st.generic1 = INVOKE_FX_SPIRIT_BOLT;
+		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_SPIRIT_BOLT ) == qtrue );
 	}
 
 	// the slowed window drains, draws, and clears like its siblings
@@ -588,6 +590,26 @@ int main( void ) {
 		cg.snap->ps.powerups[PW_HASTE] = cg.time + 2 * ALACRITY_MS;
 		CHECK( CG_InvokeAlacrityFraction() == 1.0f );
 		cg.snap->ps.powerups[PW_HASTE] = 0;
+	}
+
+	// the forge spirit and its bolt draw from their markers' budgets
+	{
+		centity_t cent;
+
+		memset( &cent, 0, sizeof( cent ) );
+		cent.lerpOrigin[0] = 128;
+		cent.lerpOrigin[1] = 64;
+		cent.lerpOrigin[2] = 40;
+		CG_InvokeForgeSpirit( &cent );
+		CHECK( entityCount == FORGE_SPIRIT_STEPS );
+		CHECK( lightCount == 1 );
+		entityCount = lightCount = 0;
+
+		cent.currentState.pos.trDelta[0] = 900;	// the bolt's flight direction
+		CG_InvokeSpiritBolt( &cent );
+		CHECK( entityCount == FORGE_BOLT_STEPS );
+		CHECK( lightCount == 1 );
+		entityCount = lightCount = 0;
 	}
 	cg.snap = NULL;
 	frame();

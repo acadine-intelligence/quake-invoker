@@ -491,6 +491,53 @@ void CG_InvokeIceField( centity_t *cent ) {
 	trap_R_AddLightToScene( cent->lerpOrigin, 200, 0.4f, 0.7f, 1.0f );
 }
 
+// Forge Spirit: a small flame wisp of orbiting sprites plus a warm light.
+// The server moves the entity; this draw only follows its origin.
+void CG_InvokeForgeSpirit( centity_t *cent ) {
+	const vec4_t col = { 1.0f, 0.55f, 0.18f, 1.0f };
+	float pulse = 0.65f + 0.25f * sin( cg.time * 0.006f );
+	float phase = ( cg.time % 2400 ) * ( 2.0f * M_PI / 2400.0f );
+	int i;
+	vec3_t p;
+
+	for ( i = 0; i < FORGE_SPIRIT_STEPS; i++ ) {
+		float a = phase + i * ( 2.0f * M_PI / FORGE_SPIRIT_STEPS );
+		float r = 7.0f + 2.0f * sin( phase * 2.0f + i );
+
+		p[0] = cent->lerpOrigin[0] + r * cos( a );
+		p[1] = cent->lerpOrigin[1] + r * sin( a );
+		p[2] = cent->lerpOrigin[2] + 3.0f * sin( phase * 1.5f + i * 1.7f );
+		CG_InvokeWorldSprite( p, ( i % 2 ) ? 4.5f : 5.5f, col, pulse, a * 180 / M_PI );
+	}
+	trap_R_AddLightToScene( cent->lerpOrigin, 110, 1.0f, 0.55f, 0.18f );
+}
+
+// Spirit bolt: a short comet trail behind its flight direction, built from
+// the missile's own velocity so it reads as a dart even at long range.
+void CG_InvokeSpiritBolt( centity_t *cent ) {
+	const vec4_t col = { 1.0f, 0.6f, 0.2f, 1.0f };
+	vec3_t dir, p;
+	float len;
+	int i;
+
+	VectorCopy( cent->currentState.pos.trDelta, dir );
+	len = sqrt( dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2] );
+	if ( len <= 0.0f ) {
+		VectorSet( dir, 1, 0, 0 );
+	} else {
+		VectorScale( dir, 1.0f / len, dir );
+	}
+	for ( i = 0; i < FORGE_BOLT_STEPS; i++ ) {
+		float d = i * 8.0f;
+
+		p[0] = cent->lerpOrigin[0] - dir[0] * d;
+		p[1] = cent->lerpOrigin[1] - dir[1] * d;
+		p[2] = cent->lerpOrigin[2] - dir[2] * d;
+		CG_InvokeWorldSprite( p, 6.0f - i, col, 0.95f - 0.18f * i, i * 47.0f );
+	}
+	trap_R_AddLightToScene( cent->lerpOrigin, 120, 1.0f, 0.5f, 0.15f );
+}
+
 // Camera-relative motes orbit below the crosshair. No game entities or
 // particles accumulate: each frame submits a fixed, bounded render list.
 void CG_AddInvokeEffects( void ) {

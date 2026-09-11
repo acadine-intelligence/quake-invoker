@@ -188,6 +188,38 @@ float BG_InvokeWeaponDamageScale( float base, int hasteActive ) {
 
 /*
 ==============
+BG_InvokeShredClear / BG_InvokeShredApply / BG_InvokeShredActive /
+BG_InvokeShredScale
+
+Forge Spirit bolts crack the victim's armor: while the shred window holds,
+CheckArmor gives the victim less protection. One window per victim and a
+second hit refreshes it. Kept here so the host tests run the same rules.
+==============
+*/
+void BG_InvokeShredClear( shredState_t *shred ) {
+	shred->until = 0;
+}
+
+void BG_InvokeShredApply( shredState_t *shred, int now ) {
+	shred->until = now + ARMOR_SHRED_MS;
+}
+
+qboolean BG_InvokeShredActive( const shredState_t *shred, int now ) {
+	if ( !shred->until || now >= shred->until ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+float BG_InvokeShredScale( const shredState_t *shred, int now ) {
+	if ( BG_InvokeShredActive( shred, now ) ) {
+		return ARMOR_SHRED_SCALE;
+	}
+	return 1.0f;
+}
+
+/*
+==============
 BG_PushOrb
 ==============
 */

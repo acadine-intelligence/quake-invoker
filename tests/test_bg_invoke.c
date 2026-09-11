@@ -370,6 +370,24 @@ int main( void ) {
 			"haste multiplies the quad factor instead of replacing it" );
 	}
 
+	// armor shred: one window, refreshed by a second bolt, never stacked
+	{
+		shredState_t shred;
+
+		memset( &shred, 0, sizeof( shred ) );
+		CHECK( !BG_InvokeShredActive( &shred, 1000 ), "no shred before a bolt lands" );
+		CHECK( BG_InvokeShredScale( &shred, 1000 ) == 1.0f, "full protection without shred" );
+		BG_InvokeShredApply( &shred, 1000 );
+		CHECK( BG_InvokeShredActive( &shred, 1000 + ARMOR_SHRED_MS - 1 ), "the shred window holds" );
+		CHECK( BG_InvokeShredScale( &shred, 1500 ) == ARMOR_SHRED_SCALE, "shred weakens armor while it holds" );
+		BG_InvokeShredApply( &shred, 1500 );
+		CHECK( shred.until == 1500 + ARMOR_SHRED_MS, "a second bolt refreshes, never stacks" );
+		CHECK( !BG_InvokeShredActive( &shred, 1500 + ARMOR_SHRED_MS ), "the shred window ends on time" );
+		CHECK( BG_InvokeShredScale( &shred, 1500 + ARMOR_SHRED_MS ) == 1.0f, "protection returns after the window" );
+		BG_InvokeShredClear( &shred );
+		CHECK( !BG_InvokeShredActive( &shred, 1600 ), "a cleared shred is gone" );
+	}
+
 	// every classic spell recipe maps to its definition, and no other
 	// recipe carries a spell ID
 	{

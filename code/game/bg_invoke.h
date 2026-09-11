@@ -46,6 +46,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define INVOKE_FX_TORNADO		1
 #define INVOKE_FX_DEAFENING		2
 #define INVOKE_FX_ICEWALL		3
+#define INVOKE_FX_FORGE_SPIRIT	4
+#define INVOKE_FX_SPIRIT_BOLT	5
 
 #define INVOKE_MOVE_W		0x01
 #define INVOKE_MOVE_A		0x02
@@ -136,6 +138,21 @@ qboolean BG_InvokeSlowActive( const slowState_t *slow, int now );
 
 void BG_InvokeHasteExtend( int *powerupEnd, int now );
 float BG_InvokeWeaponDamageScale( float base, int hasteActive );
+
+// Armor shred (Forge Spirit bolts), shared with the host tests like the
+// other debuff rules. A hit cracks the victim's protection for a window;
+// a second hit refreshes it and hits never stack.
+#define ARMOR_SHRED_MS		4000
+#define ARMOR_SHRED_SCALE	0.6f
+
+typedef struct {
+	int	until;			// level.time the shred ends (0 = none active)
+} shredState_t;
+
+void BG_InvokeShredClear( shredState_t *shred );
+void BG_InvokeShredApply( shredState_t *shred, int now );
+qboolean BG_InvokeShredActive( const shredState_t *shred, int now );
+float BG_InvokeShredScale( const shredState_t *shred, int now );
 
 // Server-authoritative hand assignment and per-item timing. nextFireTime is
 // indexed by weapon so duplicate weapons in both hands necessarily share it;

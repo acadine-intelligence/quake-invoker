@@ -316,7 +316,8 @@ char	*modNames[] = {
 	"MOD_CHAOS_METEOR_SPLASH",
 	"MOD_DEAFENING_BLAST",
 	"MOD_COLD_SNAP",
-	"MOD_ICE_WALL"
+	"MOD_ICE_WALL",
+	"MOD_FORGE_BOLT"
 };
 
 #ifdef MISSIONPACK
@@ -696,7 +697,8 @@ int CheckArmor (gentity_t *ent, int damage, int dflags)
 
 	// armor
 	count = client->ps.stats[STAT_ARMOR];
-	save = ceil( damage * ARMOR_PROTECTION );
+	// a spirit bolt's shred weakens the plate while its window holds
+	save = ceil( damage * ARMOR_PROTECTION * G_InvokeArmorScale( ent ) );
 	if (save >= count)
 		save = count;
 

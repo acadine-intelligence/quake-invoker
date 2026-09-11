@@ -1325,6 +1325,8 @@ void CG_InvokeSpellCast( int hand, int spell );
 #define TORNADO_SPRITES 16		// sprites in the tornado column
 #define ICE_FIELD_OUTER_STEPS 20	// sprites around an ice wall field
 #define ICE_FIELD_INNER_STEPS 10	// inner ring of the same field
+#define FORGE_SPIRIT_STEPS 6		// sprites in a forge spirit wisp
+#define FORGE_BOLT_STEPS 4			// sprites in a spirit bolt's trail
 void CG_InvokeEmpCharge( int caster, vec3_t origin, int duration );
 
 // The charge was retracted (the caster died or left the game): clear the
@@ -1341,6 +1343,8 @@ float CG_InvokeAlacrityFraction( void );
 void CG_InvokeIceField( centity_t *cent );
 void CG_InvokeTornado( centity_t *cent );
 void CG_InvokeBlastMissile( centity_t *cent );
+void CG_InvokeForgeSpirit( centity_t *cent );
+void CG_InvokeSpiritBolt( centity_t *cent );
 qboolean CG_InvokeMissileMarker( const entityState_t *s, int marker );
 float CG_InvokeReadyFraction( int now, int castTime, int cooldown );
 void CG_AddInvokeEffects( void );

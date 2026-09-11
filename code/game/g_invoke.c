@@ -79,6 +79,26 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define ICE_WALL_SLOW_NOTICE_MS	600
 #define ICE_WALL_MAX_FIELDS	8
 
+// Forge Spirit: a damageable companion that hovers near its caster and
+// lobs fire bolts that shred armor. One caster keeps at most
+// FORGE_SPIRIT_MAX alive; a summon at the cap dismisses the oldest. The
+// spirit dies with its caster, when its health runs out, or after
+// FORGE_SPIRIT_LIFE_MS. The bolt's damage lands through
+// G_InvokeSpiritBoltImpact; its shred rule lives in bg_invoke.c. The
+// SPIRIT_BOLT_* values are shared with g_missile.c via g_local.h.
+#define FORGE_SPIRIT_LIFE_MS	30000
+#define FORGE_SPIRIT_HEALTH		60
+#define FORGE_SPIRIT_MAX		2
+#define FORGE_SPIRIT_BBOX		10
+#define FORGE_SPIRIT_SPEED		280
+#define FORGE_SPIRIT_HOVER		30
+#define FORGE_SPIRIT_LEAD		70
+#define FORGE_SPIRIT_SIDE		22
+#define FORGE_SPIRIT_STANDOFF	14
+#define FORGE_SPIRIT_SIGHT		600
+#define FORGE_SPIRIT_FIRE_MS	1300
+#define FORGE_SPIRIT_THINK_MS	50
+
 typedef struct {
 	int		orbSlots[INVOKE_SLOTS];	// orbType_t values, oldest first
 	invokeHands_t hands;
@@ -92,6 +112,7 @@ typedef struct {
 	int		disarmedUntil;			// weapon fire stays silent until this time
 	chillState_t	chill;			// Cold Snap debuff on this client
 	slowState_t		slow;			// Ice Wall slow on this client
+	shredState_t	shred;			// Forge Spirit armor shred on this client
 } invokeState_t;
 
 static invokeState_t	g_invoke[MAX_CLIENTS];
@@ -224,6 +245,7 @@ void G_InvokeReset( gentity_t *ent ) {
 	VectorClear( st->sunstrikeOrigin );
 	BG_InvokeChillClear( &st->chill );
 	BG_InvokeSlowClear( &st->slow );
+	BG_InvokeShredClear( &st->shred );
 	// a dead caster's pending EMP dies with the life, like Sunstrike:
 	// otherwise the burst lands on the respawned player's behalf
 	G_InvokeCancelPendingEmp( ent );
@@ -282,6 +304,7 @@ static qboolean G_InvokeSpellCastable( int spell ) {
 	case SPELL_COLD_SNAP:
 	case SPELL_ICE_WALL:
 	case SPELL_ALACRITY:
+	case SPELL_FORGE_SPIRIT:
 	case SPELL_GHOST_WALK:
 	case SPELL_SUNSTRIKE:
 	case SPELL_EMP:
@@ -386,6 +409,7 @@ void Cmd_InvokeSwap_f( gentity_t *ent ) {
 }
 
 static void G_InvokePlaceIceWall( gentity_t *ent, vec3_t aimPoint );
+static void G_InvokeSummonForgeSpirit( gentity_t *ent );
 
 /*
 ==============
@@ -467,6 +491,9 @@ static void G_InvokeCastSpell( gentity_t *ent, invokeState_t *st, int hand,
 		// and hand cooldowns already read PW_HASTE. The extend helper
 		// refreshes a live window without stacking or shortening it.
 		BG_InvokeHasteExtend( &ps->powerups[PW_HASTE], level.time );
+		break;
+	case SPELL_FORGE_SPIRIT:
+		G_InvokeSummonForgeSpirit( ent );
 		break;
 	case SPELL_SUNSTRIKE:
 		VectorCopy( ps->origin, start );
@@ -899,6 +926,227 @@ static void G_InvokePlaceIceWall( gentity_t *ent, vec3_t aimPoint ) {
 	field->count = 0;					// last applied damage tick
 	G_SetOrigin( field, place );
 	trap_LinkEntity( field );
+}
+
+/*
+==============
+G_InvokeArmorScale
+
+CheckArmor asks for this while applying damage: a victim under a spirit
+bolt's shred window gets less protection. 1.0 when no window holds.
+==============
+*/
+float G_InvokeArmorScale( gentity_t *ent ) {
+	if ( !ent || !ent->client ) {
+		return 1.0f;
+	}
+	return BG_InvokeShredScale( &G_InvokeState( ent )->shred, level.time );
+}
+
+/*
+==============
+G_InvokeForgeSpiritFade / G_InvokeForgeSpiritDie
+
+The companion leaves quietly: no corpse, no explosion. The cgame simply
+stops drawing it on the next snapshot.
+==============
+*/
+static void G_InvokeForgeSpiritFade( gentity_t *self ) {
+	G_FreeEntity( self );
+}
+
+static void G_InvokeForgeSpiritDie( gentity_t *self, gentity_t *inflictor,
+	gentity_t *attacker, int damage, int mod ) {
+	G_InvokeForgeSpiritFade( self );
+}
+
+/*
+==============
+G_InvokeForgeSpiritThink
+
+Follows the caster at a hover offset and fires at the nearest visible
+enemy on an interval. The spirit is server-authoritative: this think
+moves, traces and re-stamps the network position each tick; the cgame
+draws the wisp and its bolts from the entity markers.
+==============
+*/
+static void G_InvokeForgeSpiritThink( gentity_t *self ) {
+	gentity_t	*owner = self->parent;
+	gentity_t	*best = NULL;
+	vec3_t		want, dir, end, muzzle, fwd, right;
+	trace_t		tr;
+	float		bestDist, dist;
+	int			i;
+
+	if ( !self->inuse ) {
+		return;
+	}
+
+	// the spirit lives only as long as its caster does
+	if ( !owner || !owner->inuse || !owner->client
+		|| owner->health <= 0
+		|| owner->client->pers.connected != CON_CONNECTED ) {
+		G_InvokeForgeSpiritFade( self );
+		return;
+	}
+
+	// and only for its lifetime
+	if ( level.time - self->s.time >= FORGE_SPIRIT_LIFE_MS ) {
+		G_InvokeForgeSpiritFade( self );
+		return;
+	}
+
+	self->nextthink = level.time + FORGE_SPIRIT_THINK_MS;
+
+	// glide toward a point ahead, above and slightly right of the caster
+	// so the spirit stays in view; walls stop the glide
+	AngleVectors( owner->client->ps.viewangles, fwd, right, NULL );
+	VectorMA( owner->r.currentOrigin, FORGE_SPIRIT_LEAD, fwd, want );
+	VectorMA( want, FORGE_SPIRIT_SIDE, right, want );
+	want[2] += FORGE_SPIRIT_HOVER;
+	VectorSubtract( want, self->r.currentOrigin, dir );
+	if ( VectorLength( dir ) > FORGE_SPIRIT_STANDOFF ) {
+		float step = FORGE_SPIRIT_SPEED * FORGE_SPIRIT_THINK_MS * 0.001f;
+
+		VectorNormalize( dir );
+		VectorMA( self->r.currentOrigin, step, dir, end );
+		trap_Trace( &tr, self->r.currentOrigin, self->r.mins, self->r.maxs,
+			end, self->s.number, MASK_SOLID );
+		VectorCopy( tr.endpos, self->r.currentOrigin );
+	}
+
+	// fire at the nearest enemy client in sight, on the fire interval
+	if ( level.time >= self->wait ) {
+		bestDist = FORGE_SPIRIT_SIGHT * FORGE_SPIRIT_SIGHT;
+		for ( i = 0; i < level.maxclients; i++ ) {
+			gentity_t *cand = &g_entities[i];
+
+			if ( !cand->inuse || !cand->client || cand == owner
+				|| cand->health <= 0
+				|| cand->client->pers.connected != CON_CONNECTED
+				|| cand->client->sess.sessionTeam == TEAM_SPECTATOR
+				|| OnSameTeam( owner, cand ) ) {
+				continue;
+			}
+			VectorSubtract( cand->r.currentOrigin, self->r.currentOrigin, dir );
+			dist = VectorLengthSquared( dir );
+			if ( dist > bestDist ) {
+				continue;
+			}
+			trap_Trace( &tr, self->r.currentOrigin, NULL, NULL,
+				cand->r.currentOrigin, self->s.number, MASK_SOLID );
+			if ( tr.fraction < 1.0f ) {
+				continue;	// a wall eats this shot; hold fire
+			}
+			bestDist = dist;
+			best = cand;
+		}
+		if ( best ) {
+			VectorSubtract( best->r.currentOrigin, self->r.currentOrigin, dir );
+			VectorNormalize( dir );
+			VectorCopy( self->r.currentOrigin, muzzle );
+			VectorMA( muzzle, SPIRIT_BOLT_OFFSET, dir, muzzle );
+			fire_invoke_spirit_bolt( self, muzzle, dir );
+			self->wait = level.time + FORGE_SPIRIT_FIRE_MS;
+		}
+	}
+
+	// re-stamp the network position so clients glide between snapshots
+	self->s.pos.trType = TR_LINEAR;
+	self->s.pos.trTime = level.time;
+	VectorCopy( self->r.currentOrigin, self->s.pos.trBase );
+	VectorClear( self->s.pos.trDelta );
+	VectorCopy( self->r.currentOrigin, self->s.origin );
+	trap_LinkEntity( self );
+}
+
+/*
+==============
+G_InvokeSummonForgeSpirit
+
+Creates the companion beside its caster. At the per-owner cap the oldest
+spirit is dismissed first, so a cast always lands and the cap holds.
+==============
+*/
+static void G_InvokeSummonForgeSpirit( gentity_t *ent ) {
+	gentity_t	*iter, *oldest = NULL;
+	vec3_t		spawn, forward, right;
+	trace_t		tr;
+	int			i, alive = 0;
+
+	// cap: count this caster's living spirits and find the oldest
+	for ( i = 0; i < level.num_entities; i++ ) {
+		iter = &g_entities[i];
+		if ( !iter->inuse || iter->parent != ent
+			|| strcmp( iter->classname, "invoke_forge_spirit" ) ) {
+			continue;
+		}
+		alive++;
+		if ( !oldest || iter->s.time < oldest->s.time ) {
+			oldest = iter;
+		}
+	}
+	if ( alive >= FORGE_SPIRIT_MAX && oldest ) {
+		G_FreeEntity( oldest );
+	}
+
+	// spawn beside and above the caster; pull back to open air if the
+	// offset lands inside a wall
+	AngleVectors( ent->client->ps.viewangles, forward, right, NULL );
+	VectorCopy( ent->client->ps.origin, spawn );
+	VectorMA( spawn, 54, right, spawn );
+	spawn[2] += 30;
+	trap_Trace( &tr, ent->client->ps.origin, NULL, NULL, spawn,
+		ent->s.number, MASK_SOLID );
+	if ( tr.fraction < 1.0f ) {
+		VectorCopy( ent->client->ps.origin, spawn );
+		spawn[2] += 40;
+	}
+
+	iter = G_Spawn();
+	iter->classname = "invoke_forge_spirit";
+	iter->parent = ent;
+	iter->r.ownerNum = ent->s.number;
+	iter->s.eType = ET_GENERAL;
+	iter->s.generic1 = INVOKE_FX_FORGE_SPIRIT;	// cgame draw marker
+	iter->s.time = level.time;					// birth: lifetime and age order
+	iter->r.contents = CONTENTS_CORPSE;			// shootable, walk-through
+	iter->health = FORGE_SPIRIT_HEALTH;
+	iter->takedamage = qtrue;
+	iter->die = G_InvokeForgeSpiritDie;
+	iter->r.mins[0] = iter->r.mins[1] = iter->r.mins[2] = -FORGE_SPIRIT_BBOX;
+	iter->r.maxs[0] = iter->r.maxs[1] = iter->r.maxs[2] = FORGE_SPIRIT_BBOX;
+	G_SetOrigin( iter, spawn );
+	trap_LinkEntity( iter );
+	iter->think = G_InvokeForgeSpiritThink;
+	iter->nextthink = level.time + FORGE_SPIRIT_THINK_MS;
+	iter->wait = level.time + FORGE_SPIRIT_FIRE_MS;
+}
+
+/*
+==============
+G_InvokeSpiritBoltImpact
+
+Replaces the standard missile explosion for spirit bolts. Enemy clients
+take the hit and the armor shred; everything else just stops.
+==============
+*/
+void G_InvokeSpiritBoltImpact( gentity_t *ent, trace_t *trace ) {
+	gentity_t	*targ = &g_entities[trace->entityNum];
+	gentity_t	*owner = ent->parent;
+	vec3_t		dir;
+
+	if ( targ && targ->client && targ->takedamage && targ->health > 0
+		&& targ != owner && !OnSameTeam( owner, targ ) ) {
+		VectorCopy( ent->s.pos.trDelta, dir );
+		VectorNormalize( dir );
+		G_Damage( targ, ent, owner, dir, ent->r.currentOrigin,
+			SPIRIT_BOLT_DAMAGE, DAMAGE_NO_KNOCKBACK, MOD_FORGE_BOLT );
+		BG_InvokeShredApply( &G_InvokeState( targ )->shred, level.time );
+	}
+
+	ent->s.eType = ET_GENERAL;
+	ent->freeAfterEvent = qtrue;
 }
 
 /*

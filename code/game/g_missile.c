@@ -299,6 +299,10 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 		G_InvokeBlastImpact( ent, trace );
 		return;
 	}
+	if ( !strcmp( ent->classname, "invoke_spirit_bolt" ) ) {
+		G_InvokeSpiritBoltImpact( ent, trace );
+		return;
+	}
 
 #ifdef MISSIONPACK
 	if ( other->takedamage ) {
@@ -806,6 +810,46 @@ gentity_t *fire_invoke_blast (gentity_t *self, vec3_t start, vec3_t dir) {
 	VectorScale( dir, 620, bolt->s.pos.trDelta );
 	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
 	VectorCopy (start, bolt->r.currentOrigin);
+
+	return bolt;
+}
+
+/*
+=================
+fire_invoke_spirit_bolt
+
+Forge Spirit bolt: a small fire missile. G_InvokeSpiritBoltImpact does the
+damage and the armor shred; the cgame draws it from the s.generic1 marker.
+The owner number keeps the caster out of its own spirit's line of fire.
+=================
+*/
+gentity_t *fire_invoke_spirit_bolt (gentity_t *self, vec3_t start, vec3_t dir) {
+	gentity_t	*bolt;
+	gentity_t	*owner = self->parent ? self->parent : self;
+
+	VectorNormalize (dir);
+
+	bolt = G_Spawn();
+	bolt->classname = "invoke_spirit_bolt";
+	bolt->s.eType = ET_MISSILE;
+	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
+	bolt->s.weapon = WP_ROCKET_LAUNCHER;
+	bolt->s.generic1 = INVOKE_FX_SPIRIT_BOLT;	// cgame draw marker
+	bolt->r.ownerNum = owner->s.number;			// the caster never eats it
+	bolt->parent = owner;						// kill credit goes to the caster
+	bolt->clipmask = MASK_SHOT;
+	bolt->s.time = level.time;
+
+	bolt->s.pos.trType = TR_LINEAR;
+	bolt->s.pos.trTime = level.time - MISSILE_PRESTEP_TIME;
+	VectorCopy( start, bolt->s.pos.trBase );
+	VectorScale( dir, SPIRIT_BOLT_SPEED, bolt->s.pos.trDelta );
+	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
+	VectorCopy( start, bolt->r.currentOrigin );
+
+	// a bolt that misses everything cleans itself up
+	bolt->nextthink = level.time + 3000;
+	bolt->think = G_FreeEntity;
 
 	return bolt;
 }

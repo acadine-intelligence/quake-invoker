@@ -433,6 +433,10 @@ static void CG_Missile( centity_t *cent ) {
 		CG_InvokeBlastMissile( cent );
 		return;
 	}
+	if ( CG_InvokeMissileMarker( s1, INVOKE_FX_SPIRIT_BOLT ) ) {
+		CG_InvokeSpiritBolt( cent );
+		return;
+	}
 
 	// calculate the axis
 	VectorCopy( s1->angles, cent->lerpAngles);
@@ -1023,6 +1027,11 @@ static void CG_AddCEntity( centity_t *cent ) {
 		// invoke ice wall fields carry their own marker
 		if ( cent->currentState.generic1 == INVOKE_FX_ICEWALL ) {
 			CG_InvokeIceField( cent );
+			break;
+		}
+		// forge spirits glide: the same marker pass draws the wisp
+		if ( cent->currentState.generic1 == INVOKE_FX_FORGE_SPIRIT ) {
+			CG_InvokeForgeSpirit( cent );
 			break;
 		}
 		CG_General( cent );
