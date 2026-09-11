@@ -15,6 +15,12 @@ static float cooldownFillW;
 static float intensity;
 static char hudText[256];
 static char clientCommands[8][32];
+typedef struct { float x, y, w, h; } fillRec_t;
+typedef struct { int x, y; char text[64]; } strRec_t;
+static fillRec_t fills[96];
+static int fillCount;
+static strRec_t strs[96];
+static int strCount;
 
 #define CHECK(c) do { checks++; assert(c); } while (0)
 
@@ -33,7 +39,13 @@ void CG_DrawPic( float x, float y, float w, float h, qhandle_t shader ) {
 	hudCount++;
 }
 void CG_FillRect( float x, float y, float w, float h, const float *color ) {
-	(void)y; (void)color;
+	(void)color;
+	assert( fillCount < 96 );
+	fills[fillCount].x = x;
+	fills[fillCount].y = y;
+	fills[fillCount].w = w;
+	fills[fillCount].h = h;
+	fillCount++;
 	// the HUD's spell recharge bars are the only thin fills at x = 120
 	if ( x == 120.0f && h == 6.0f ) {
 		cooldownBars++;
@@ -44,8 +56,13 @@ void CG_FillRect( float x, float y, float w, float h, const float *color ) {
 }
 void CG_DrawStringExt( int x, int y, const char *s, const float *color,
 	qboolean force, qboolean shadow, int w, int h, int maxChars ) {
-	(void)x; (void)y; (void)color; (void)force; (void)shadow;
+	(void)color; (void)force; (void)shadow;
 	(void)w; (void)h; (void)maxChars;
+	assert( strCount < 96 );
+	strs[strCount].x = x;
+	strs[strCount].y = y;
+	snprintf( strs[strCount].text, sizeof( strs[strCount].text ), "%s", s );
+	strCount++;
 	assert( strlen( hudText ) + strlen( s ) + 2 < sizeof( hudText ) );
 	strcat( hudText, s );
 	strcat( hudText, "\n" );
@@ -69,10 +86,31 @@ void trap_SendClientCommand( const char *command ) {
 	snprintf( clientCommands[clientCommandCount++], sizeof( clientCommands[0] ),
 		"%s", command );
 }
+static int fills_at( float x, float y ) {
+	int i, n = 0;
+	for ( i = 0; i < fillCount; i++ ) {
+		if ( fills[i].x == x && fills[i].y == y ) {
+			n++;
+		}
+	}
+	return n;
+}
+
+static int str_x_at( const char *s ) {
+	int i;
+	for ( i = 0; i < strCount; i++ ) {
+		if ( !strcmp( strs[i].text, s ) ) {
+			return strs[i].x;
+		}
+	}
+	return -1;
+}
+
 static void frame( void ) {
 	entityCount = lightCount = hudCount = 0;
 	cooldownBars = 0;
 	cooldownFillW = 0;
+	fillCount = strCount = 0;
 	hudText[0] = '\0';
 	CG_AddInvokeEffects();
 	CG_DrawOrbs();
@@ -365,12 +403,16 @@ int main( void ) {
 		CHECK( CG_InvokeDisarmFraction() > 0.9f );
 		frame();
 		CHECK( strstr( hudText, "WEAPONS DISABLED" ) != NULL );
+		CHECK( fills_at( 268, 281 ) >= 2 );	// bar back + bar fill
+		CHECK( str_x_at( "WEAPONS DISABLED" ) == 272 );	// 16 chars x 6 px, centered
 		cg.time += 1500;
 		CHECK( CG_InvokeDisarmFraction() > 0.4f && CG_InvokeDisarmFraction() < 0.6f );
 		cg.time += 1600;
 		frame();
 		CHECK( CG_InvokeDisarmFraction() == 0.0f );
 		CHECK( strstr( hudText, "WEAPONS DISABLED" ) == NULL );
+		CHECK( fills_at( 268, 281 ) == 0 && str_x_at( "WEAPONS DISABLED" ) == -1 );
+		CHECK( fills_at( 268, 305 ) == 0 && fills_at( 268, 329 ) == 0 );
 
 		// the reset path must clear a live window, not just a fresh one
 		CG_InvokeDisarm( 3000 );
@@ -393,12 +435,16 @@ int main( void ) {
 		CHECK( CG_InvokeChillFraction() > 0.9f );
 		frame();
 		CHECK( strstr( hudText, "CHILLED" ) != NULL );
+		CHECK( fills_at( 268, 305 ) >= 2 );
+		CHECK( str_x_at( "CHILLED" ) == 299 );	// 7 chars x 6 px, centered
 		cg.time += 2500;
 		CHECK( CG_InvokeChillFraction() > 0.4f && CG_InvokeChillFraction() < 0.6f );
 		cg.time += 2600;
 		frame();
 		CHECK( CG_InvokeChillFraction() == 0.0f );
 		CHECK( strstr( hudText, "CHILLED" ) == NULL );
+		CHECK( fills_at( 268, 305 ) == 0 && str_x_at( "CHILLED" ) == -1 );
+		CHECK( fills_at( 268, 281 ) == 0 && fills_at( 268, 329 ) == 0 );
 
 		// the reset path must clear a live debuff, not just a fresh one
 		CG_InvokeChill( 2000 );
@@ -457,12 +503,16 @@ int main( void ) {
 		CHECK( CG_InvokeSlowFraction() > 0.9f );
 		frame();
 		CHECK( strstr( hudText, "SLOWED" ) != NULL );
+		CHECK( fills_at( 268, 329 ) >= 2 );
+		CHECK( str_x_at( "SLOWED" ) == 302 );	// 6 chars x 6 px, centered
 		cg.time += 300;
 		CHECK( CG_InvokeSlowFraction() > 0.4f && CG_InvokeSlowFraction() < 0.6f );
 		cg.time += 301;
 		frame();
 		CHECK( CG_InvokeSlowFraction() == 0.0f );
 		CHECK( strstr( hudText, "SLOWED" ) == NULL );
+		CHECK( fills_at( 268, 329 ) == 0 && str_x_at( "SLOWED" ) == -1 );
+		CHECK( fills_at( 268, 281 ) == 0 && fills_at( 268, 305 ) == 0 );
 
 		// the reset path must clear a live slow, not just a fresh one
 		CG_InvokeSlow( 1500 );
