@@ -523,6 +523,7 @@ typedef struct {
 	int			invokeHandWeapons[MAX_CLIENTS][INVOKE_HANDS];
 	int			invokeHandSpells[MAX_CLIENTS][INVOKE_HANDS];
 	int			invokeHandFireTime[MAX_CLIENTS][INVOKE_HANDS];
+	int			invokeCastTime[SPELL_NUM];	// local: cg.time of the last confirmed cast, per spell
 
 	// auto rotating items
 	vec3_t		autoAngles;
@@ -1304,6 +1305,8 @@ void CG_InvokeWeapon( int hand, int weapon, int spell );
 void CG_InvokeStrikeBeam( vec3_t start, vec3_t end );
 void CG_InvokeMovementKey( int moveKey, qboolean down );
 void CG_InvokeHandFired( centity_t *cent, int hand, int weapon );
+void CG_InvokeSpellCast( int hand, int spell );
+float CG_InvokeReadyFraction( int now, int castTime, int cooldown );
 void CG_AddInvokeEffects( void );
 void CG_DrawOrbs( void );
 void CG_DrawFlagModel( float x, float y, float w, float h, int team, qboolean force2D );

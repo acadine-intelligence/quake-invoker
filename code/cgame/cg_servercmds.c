@@ -1039,6 +1039,14 @@ static void CG_ServerCommand( void ) {
 		return;
 	}
 
+	// Server-confirmed spell cast starts the HUD's recharge readout.
+	if ( !strcmp( cmd, "invcast" ) ) {
+		if ( trap_Argc() == 3 ) {
+			CG_InvokeSpellCast( atoi( CG_Argv(1) ), atoi( CG_Argv(2) ) );
+		}
+		return;
+	}
+
 	if ( !strcmp( cmd, "print" ) ) {
 		CG_Printf( "%s", CG_Argv(1) );
 #ifdef MISSIONPACK
