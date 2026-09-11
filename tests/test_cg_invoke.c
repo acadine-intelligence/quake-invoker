@@ -15,6 +15,12 @@ static float cooldownFillW;
 static float intensity;
 static char hudText[256];
 static char clientCommands[8][32];
+typedef struct { float x, y, w, h; } fillRec_t;
+typedef struct { int x, y; char text[64]; } strRec_t;
+static fillRec_t fills[96];
+static int fillCount;
+static strRec_t strs[96];
+static int strCount;
 
 #define CHECK(c) do { checks++; assert(c); } while (0)
 
@@ -22,6 +28,28 @@ void trap_R_AddRefEntityToScene( const refEntity_t *ent ) {
 	assert( entityCount < 64 );
 	entities[entityCount++] = *ent;
 }
+// angle vectors stand-in: enough for the draw paths that orient effects
+void AngleVectors( const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up ) {
+	float cy, sy, cp, sp, cr, sr;
+
+	cy = cos( angles[1] * M_PI / 180.0 ); sy = sin( angles[1] * M_PI / 180.0 );
+	cp = cos( angles[0] * M_PI / 180.0 ); sp = sin( angles[0] * M_PI / 180.0 );
+	cr = cos( angles[2] * M_PI / 180.0 ); sr = sin( angles[2] * M_PI / 180.0 );
+	if ( forward ) {
+		forward[0] = cp * cy; forward[1] = cp * sy; forward[2] = -sp;
+	}
+	if ( right ) {
+		right[0] = -sr * sp * cy + cr * sy;
+		right[1] = -sr * sp * sy - cr * cy;
+		right[2] = -sr * cp;
+	}
+	if ( up ) {
+		up[0] = cr * sp * cy + sr * sy;
+		up[1] = cr * sp * sy - sr * cy;
+		up[2] = cr * cp;
+	}
+}
+
 void trap_R_AddLightToScene( const vec3_t org, float value, float r, float g, float b ) {
 	(void)org; (void)r; (void)g; (void)b;
 	lightCount++;
@@ -33,7 +61,13 @@ void CG_DrawPic( float x, float y, float w, float h, qhandle_t shader ) {
 	hudCount++;
 }
 void CG_FillRect( float x, float y, float w, float h, const float *color ) {
-	(void)y; (void)color;
+	(void)color;
+	assert( fillCount < 96 );
+	fills[fillCount].x = x;
+	fills[fillCount].y = y;
+	fills[fillCount].w = w;
+	fills[fillCount].h = h;
+	fillCount++;
 	// the HUD's spell recharge bars are the only thin fills at x = 120
 	if ( x == 120.0f && h == 6.0f ) {
 		cooldownBars++;
@@ -44,8 +78,13 @@ void CG_FillRect( float x, float y, float w, float h, const float *color ) {
 }
 void CG_DrawStringExt( int x, int y, const char *s, const float *color,
 	qboolean force, qboolean shadow, int w, int h, int maxChars ) {
-	(void)x; (void)y; (void)color; (void)force; (void)shadow;
+	(void)color; (void)force; (void)shadow;
 	(void)w; (void)h; (void)maxChars;
+	assert( strCount < 96 );
+	strs[strCount].x = x;
+	strs[strCount].y = y;
+	snprintf( strs[strCount].text, sizeof( strs[strCount].text ), "%s", s );
+	strCount++;
 	assert( strlen( hudText ) + strlen( s ) + 2 < sizeof( hudText ) );
 	strcat( hudText, s );
 	strcat( hudText, "\n" );
@@ -69,10 +108,31 @@ void trap_SendClientCommand( const char *command ) {
 	snprintf( clientCommands[clientCommandCount++], sizeof( clientCommands[0] ),
 		"%s", command );
 }
+static int fills_at( float x, float y ) {
+	int i, n = 0;
+	for ( i = 0; i < fillCount; i++ ) {
+		if ( fills[i].x == x && fills[i].y == y ) {
+			n++;
+		}
+	}
+	return n;
+}
+
+static int str_x_at( const char *s ) {
+	int i;
+	for ( i = 0; i < strCount; i++ ) {
+		if ( !strcmp( strs[i].text, s ) ) {
+			return strs[i].x;
+		}
+	}
+	return -1;
+}
+
 static void frame( void ) {
 	entityCount = lightCount = hudCount = 0;
 	cooldownBars = 0;
 	cooldownFillW = 0;
+	fillCount = strCount = 0;
 	hudText[0] = '\0';
 	CG_AddInvokeEffects();
 	CG_DrawOrbs();
@@ -286,6 +346,325 @@ int main( void ) {
 	CHECK( cooldownBars == 4 );			// back bar plus drain on both hands
 	CG_ResetInvokeEffects();
 	CHECK( cg.invokeCastTime[SPELL_GHOST_WALK] == 0 );
+
+	// the emp charge ring draws from cg state until it bursts
+	{
+		vec3_t here = { 64, 0, 0 };
+		float ringRadius;
+
+		CG_ResetInvokeEffects();
+		CG_InvokeEmpCharge( 0, here, 2500 );
+		frame();
+		CHECK( entityCount == EMP_RING_STEPS && lightCount == 1 );	// ring plus charge light
+		CHECK( entities[0].reType == RT_SPRITE && entities[1].reType == RT_SPRITE );
+		CHECK( entities[0].origin[0] != entities[1].origin[0] );
+		ringRadius = entities[0].radius;
+		cg.time += 2000;
+		frame();
+		CHECK( entityCount == EMP_RING_STEPS && entities[0].radius > ringRadius );
+		cg.time += 600;
+		frame();
+		CHECK( !entityCount && !lightCount );
+	}
+
+	// a retracted charge stops drawing at once
+	{
+		vec3_t here = { 128, 0, 0 };
+
+		CG_ResetInvokeEffects();
+		CHECK( cg.invokeEmpCaster == -1 );
+		CG_InvokeEmpCharge( 0, here, 2500 );
+		CHECK( cg.invokeEmpCaster == 0 );
+		frame();
+		CHECK( entityCount > 0 && lightCount == 1 );
+		CG_InvokeEmpCancel( 0 );
+		CHECK( cg.invokeEmpCaster == -1 );
+		frame();
+		CHECK( !entityCount && !lightCount );
+	}
+
+	// a cancel only takes down the ring of the caster it names
+	{
+		vec3_t here = { 128, 0, 0 };
+		vec3_t there = { -128, 0, 0 };
+
+		CG_ResetInvokeEffects();
+		CG_InvokeEmpCharge( 0, here, 2500 );
+		CG_InvokeEmpCharge( 1, there, 2500 );	// caster 1's ring is on screen
+		CHECK( cg.invokeEmpCaster == 1 );
+		frame();
+		CHECK( entityCount == EMP_RING_STEPS && lightCount == 1 );
+		CHECK( entities[0].origin[0] < 0 );
+		CG_InvokeEmpCancel( 0 );	// caster 0 dies; that ring is not on screen
+		CHECK( cg.invokeEmpCaster == 1 );
+		frame();
+		CHECK( entityCount == EMP_RING_STEPS && lightCount == 1 );
+		CG_InvokeEmpCancel( 1 );
+		CHECK( cg.invokeEmpCaster == -1 );
+		frame();
+		CHECK( !entityCount && !lightCount );
+	}
+
+	// a cancel that arrives after the window expired is ignored entirely
+	{
+		vec3_t here = { 64, 0, 0 };
+
+		CG_ResetInvokeEffects();
+		CG_InvokeEmpCharge( 2, here, 500 );
+		cg.time += 600;
+		CG_InvokeEmpCancel( 2 );
+		frame();
+		CHECK( !entityCount && cg.invokeEmpCaster == 2 );	// nothing was on screen to take down
+	}
+
+	// the victim-facing disarm window drains, draws, and clears
+	{
+		CG_ResetInvokeEffects();
+		CHECK( CG_InvokeDisarmFraction() == 0.0f );
+		CG_InvokeDisarm( 3000 );
+		CHECK( CG_InvokeDisarmFraction() > 0.9f );
+		frame();
+		CHECK( strstr( hudText, "WEAPONS DISABLED" ) != NULL );
+		CHECK( fills_at( 268, 281 ) >= 2 );	// bar back + bar fill
+		CHECK( str_x_at( "WEAPONS DISABLED" ) == 272 );	// 16 chars x 6 px, centered
+		cg.time += 1500;
+		CHECK( CG_InvokeDisarmFraction() > 0.4f && CG_InvokeDisarmFraction() < 0.6f );
+		cg.time += 1600;
+		frame();
+		CHECK( CG_InvokeDisarmFraction() == 0.0f );
+		CHECK( strstr( hudText, "WEAPONS DISABLED" ) == NULL );
+		CHECK( fills_at( 268, 281 ) == 0 && str_x_at( "WEAPONS DISABLED" ) == -1 );
+		CHECK( fills_at( 268, 305 ) == 0 && fills_at( 268, 329 ) == 0 );
+
+		// the reset path must clear a live window, not just a fresh one
+		CG_InvokeDisarm( 3000 );
+		CHECK( cg.invokeDisarmEndTime > cg.time );
+		CG_ResetInvokeEffects();
+		CHECK( cg.invokeDisarmEndTime == 0 && CG_InvokeDisarmFraction() == 0.0f );
+
+		// the received value drives the window: a shorter lock expires sooner
+		CG_InvokeDisarm( 1000 );
+		CHECK( CG_InvokeDisarmFraction() > 0.0f );
+		cg.time += 1100;
+		CHECK( CG_InvokeDisarmFraction() == 0.0f );
+	}
+
+	// the chilled window drains, draws, and clears like the disarm bar
+	{
+		CG_ResetInvokeEffects();
+		CHECK( CG_InvokeChillFraction() == 0.0f );
+		CG_InvokeChill( 5000 );
+		CHECK( CG_InvokeChillFraction() > 0.9f );
+		frame();
+		CHECK( strstr( hudText, "CHILLED" ) != NULL );
+		CHECK( fills_at( 268, 305 ) >= 2 );
+		CHECK( str_x_at( "CHILLED" ) == 299 );	// 7 chars x 6 px, centered
+		cg.time += 2500;
+		CHECK( CG_InvokeChillFraction() > 0.4f && CG_InvokeChillFraction() < 0.6f );
+		cg.time += 2600;
+		frame();
+		CHECK( CG_InvokeChillFraction() == 0.0f );
+		CHECK( strstr( hudText, "CHILLED" ) == NULL );
+		CHECK( fills_at( 268, 305 ) == 0 && str_x_at( "CHILLED" ) == -1 );
+		CHECK( fills_at( 268, 281 ) == 0 && fills_at( 268, 329 ) == 0 );
+
+		// the reset path must clear a live debuff, not just a fresh one
+		CG_InvokeChill( 2000 );
+		CHECK( cg.invokeChillEndTime > cg.time );
+		CG_ResetInvokeEffects();
+		CHECK( cg.invokeChillEndTime == 0 && CG_InvokeChillFraction() == 0.0f );
+
+		// a non-default duration expires on its own clock
+		CG_InvokeChill( 1000 );
+		CHECK( CG_InvokeChillFraction() > 0.0f );
+		cg.time += 1100;
+		CHECK( CG_InvokeChillFraction() == 0.0f );
+	}
+
+	// the deafening blast rings draw from cg state until the wave fades
+	{
+		vec3_t here = { 96, 0, 0 };
+
+		CG_ResetInvokeEffects();
+		CG_InvokeDeafenBurst( here );
+		frame();
+		CHECK( entityCount == EMP_RING_STEPS && lightCount == 1 );
+		CHECK( entities[0].reType == RT_SPRITE && entities[0].origin[2] > here[2] );
+		cg.time += DEAFEN_BURST_MSEC / 2;
+		frame();
+		CHECK( entityCount == 2 * EMP_RING_STEPS && lightCount == 1 );
+		cg.time += DEAFEN_BURST_MSEC / 2 + 1;
+		frame();
+		CHECK( !entityCount && !lightCount );
+	}
+
+	// the tornado and blast missiles draw from their entity marker
+	{
+		centity_t cent;
+
+		memset( &cent, 0, sizeof( cent ) );
+		cent.lerpOrigin[0] = 80;
+		cent.lerpOrigin[1] = 16;
+		cent.lerpOrigin[2] = 40;
+		CG_ResetInvokeEffects();
+		CG_InvokeTornado( &cent );
+		CHECK( entityCount == TORNADO_SPRITES && lightCount == 1 );
+		CHECK( entities[0].reType == RT_SPRITE && entities[0].radius > 0 );
+		CHECK( entities[0].origin[0] != entities[1].origin[0] );
+		entityCount = lightCount = 0;
+		cent.currentState.pos.trDelta[0] = 620;	// the marker's flight direction
+		CG_InvokeBlastMissile( &cent );
+		CHECK( entityCount == 4 && lightCount == 1 );
+	}
+
+	// the invoke marker requires our weapon: team values (missionpack
+	// prox mines ride generic1 as 1/2) must never claim the effects
+	{
+		entityState_t st;
+
+		memset( &st, 0, sizeof( st ) );
+		st.weapon = WP_ROCKET_LAUNCHER;
+		st.generic1 = INVOKE_FX_TORNADO;
+		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_TORNADO ) == qtrue );
+		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_DEAFENING ) == qfalse );
+		st.generic1 = INVOKE_FX_DEAFENING;
+		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_DEAFENING ) == qtrue );
+		st.weapon = 0;	// a prox mine's team rides generic1
+		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_DEAFENING ) == qfalse );
+		st.weapon = WP_ROCKET_LAUNCHER;
+		st.generic1 = 0;	// a stock rocket
+		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_TORNADO ) == qfalse );
+		st.generic1 = INVOKE_FX_SPIRIT_BOLT;
+		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_SPIRIT_BOLT ) == qtrue );
+		st.weapon = WP_NONE;	// a spawn that forgets the weapon renders nothing
+		st.generic1 = INVOKE_FX_TORNADO;
+		CHECK( CG_InvokeMissileMarker( &st, INVOKE_FX_TORNADO ) == qfalse );
+	}
+
+	// the slowed window drains, draws, and clears like its siblings
+	{
+		CG_ResetInvokeEffects();
+		CHECK( CG_InvokeSlowFraction() == 0.0f );
+		CG_InvokeSlow( 600 );
+		CHECK( CG_InvokeSlowFraction() > 0.9f );
+		frame();
+		CHECK( strstr( hudText, "SLOWED" ) != NULL );
+		CHECK( fills_at( 268, 329 ) >= 2 );
+		CHECK( str_x_at( "SLOWED" ) == 302 );	// 6 chars x 6 px, centered
+		cg.time += 300;
+		CHECK( CG_InvokeSlowFraction() > 0.4f && CG_InvokeSlowFraction() < 0.6f );
+		cg.time += 301;
+		frame();
+		CHECK( CG_InvokeSlowFraction() == 0.0f );
+		CHECK( strstr( hudText, "SLOWED" ) == NULL );
+		CHECK( fills_at( 268, 329 ) == 0 && str_x_at( "SLOWED" ) == -1 );
+		CHECK( fills_at( 268, 281 ) == 0 && fills_at( 268, 305 ) == 0 );
+
+		// the reset path must clear a live slow, not just a fresh one
+		CG_InvokeSlow( 1500 );
+		CHECK( cg.invokeSlowEndTime > cg.time );
+		CG_ResetInvokeEffects();
+		CHECK( cg.invokeSlowEndTime == 0 && CG_InvokeSlowFraction() == 0.0f );
+
+		// every notice refreshes the window: a later one outlives the first
+		CG_InvokeSlow( 600 );
+		cg.time += 400;
+		CG_InvokeSlow( 600 );
+		cg.time += 400;
+		CHECK( CG_InvokeSlowFraction() > 0.0f );
+
+		// a shorter notice cannot cut a live window short: a 100 ms notice
+		// 200 ms before expiry must be ignored, so the window still runs
+		CG_InvokeSlow( 100 );
+		cg.time += 150;
+		CHECK( CG_InvokeSlowFraction() > 0.0f );
+	}
+
+	// the ice wall field draws its whole ring from the entity marker
+	{
+		centity_t cent;
+
+		memset( &cent, 0, sizeof( cent ) );
+		cent.lerpOrigin[0] = 208;
+		cent.lerpOrigin[1] = -32;
+		cent.lerpOrigin[2] = 24;
+		CG_ResetInvokeEffects();
+		CG_InvokeIceField( &cent );
+		CHECK( entityCount == ICE_FIELD_OUTER_STEPS + ICE_FIELD_INNER_STEPS
+			&& lightCount == 1 && intensity == 200 );
+		CHECK( entities[0].reType == RT_SPRITE && entities[0].radius > 0 );
+		CHECK( entities[0].origin[0] != entities[1].origin[0] );
+	}
+
+	// a portal end draws its ring in the portal's own plane plus one light
+	{
+		centity_t cent;
+
+		memset( &cent, 0, sizeof( cent ) );
+		cent.lerpOrigin[0] = 300;
+		cent.lerpOrigin[1] = 64;
+		cent.lerpOrigin[2] = 40;
+		CG_ResetInvokeEffects();
+		entityCount = lightCount = 0;
+		CG_InvokePortal( &cent );
+		CHECK( entityCount == PORTAL_RING_STEPS + PORTAL_INNER_STEPS && lightCount == 1 && intensity == 140 );
+		CHECK( entities[0].reType == RT_SPRITE && entities[0].radius > 0 );
+		CHECK( entities[0].origin[0] != entities[1].origin[0]
+			|| entities[0].origin[1] != entities[1].origin[1]
+			|| entities[0].origin[2] != entities[1].origin[2] );
+		cent.currentState.frame = 1;
+		CG_ResetInvokeEffects();
+		entityCount = lightCount = 0;
+		CG_InvokePortal( &cent );
+		CHECK( entityCount == PORTAL_RING_STEPS + PORTAL_INNER_STEPS && lightCount == 1 && intensity == 140 );
+	}
+
+	// the alacrity window reads the player state and draws a named bar
+	{
+		CG_ResetInvokeEffects();
+		cg.snap->ps.powerups[PW_HASTE] = 0;
+		frame();
+		CHECK( CG_InvokeAlacrityFraction() == 0.0f );
+		CHECK( fills_at( 268, 353 ) == 0 && str_x_at( "ALACRITY" ) == -1 );
+		cg.snap->ps.powerups[PW_HASTE] = cg.time + ALACRITY_MS;
+		CHECK( CG_InvokeAlacrityFraction() > 0.9f );
+		frame();
+		CHECK( strstr( hudText, "ALACRITY" ) != NULL );
+		CHECK( fills_at( 268, 353 ) >= 2 );	// bar back + bar fill
+		CHECK( str_x_at( "ALACRITY" ) == 296 );	// 8 chars x 6 px, centered
+		cg.time += ALACRITY_MS / 2;
+		CHECK( CG_InvokeAlacrityFraction() > 0.4f && CG_InvokeAlacrityFraction() < 0.6f );
+		cg.time += ALACRITY_MS / 2;
+		frame();
+		CHECK( CG_InvokeAlacrityFraction() == 0.0f );
+		CHECK( strstr( hudText, "ALACRITY" ) == NULL );
+		CHECK( fills_at( 268, 353 ) == 0 && str_x_at( "ALACRITY" ) == -1 );
+
+		// a window longer than ALACRITY_MS (a Speed item) clamps to full
+		cg.snap->ps.powerups[PW_HASTE] = cg.time + 2 * ALACRITY_MS;
+		CHECK( CG_InvokeAlacrityFraction() == 1.0f );
+		cg.snap->ps.powerups[PW_HASTE] = 0;
+	}
+
+	// the forge spirit and its bolt draw from their markers' budgets
+	{
+		centity_t cent;
+
+		memset( &cent, 0, sizeof( cent ) );
+		cent.lerpOrigin[0] = 128;
+		cent.lerpOrigin[1] = 64;
+		cent.lerpOrigin[2] = 40;
+		CG_InvokeForgeSpirit( &cent );
+		CHECK( entityCount == FORGE_SPIRIT_STEPS );
+		CHECK( lightCount == 1 );
+		entityCount = lightCount = 0;
+
+		cent.currentState.pos.trDelta[0] = 900;	// the bolt's flight direction
+		CG_InvokeSpiritBolt( &cent );
+		CHECK( entityCount == FORGE_BOLT_STEPS );
+		CHECK( lightCount == 1 );
+		entityCount = lightCount = 0;
+	}
 	cg.snap = NULL;
 	frame();
 	CHECK( !entityCount && !hudCount );

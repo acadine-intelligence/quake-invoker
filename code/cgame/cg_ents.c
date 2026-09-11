@@ -423,6 +423,21 @@ static void CG_Missile( centity_t *cent ) {
 	}
 	weapon = &cg_weapons[s1->weapon];
 
+	// invoke spell missiles: no weapon trail or model; the s.generic1
+	// marker (with our weapon) routes them to their own effects
+	if ( CG_InvokeMissileMarker( s1, INVOKE_FX_TORNADO ) ) {
+		CG_InvokeTornado( cent );
+		return;
+	}
+	if ( CG_InvokeMissileMarker( s1, INVOKE_FX_DEAFENING ) ) {
+		CG_InvokeBlastMissile( cent );
+		return;
+	}
+	if ( CG_InvokeMissileMarker( s1, INVOKE_FX_SPIRIT_BOLT ) ) {
+		CG_InvokeSpiritBolt( cent );
+		return;
+	}
+
 	// calculate the axis
 	VectorCopy( s1->angles, cent->lerpAngles);
 
@@ -1009,6 +1024,21 @@ static void CG_AddCEntity( centity_t *cent ) {
 	case ET_TELEPORT_TRIGGER:
 		break;
 	case ET_GENERAL:
+		// invoke ice wall fields carry their own marker
+		if ( cent->currentState.generic1 == INVOKE_FX_ICEWALL ) {
+			CG_InvokeIceField( cent );
+			break;
+		}
+		// forge spirits glide: the same marker pass draws the wisp
+		if ( cent->currentState.generic1 == INVOKE_FX_FORGE_SPIRIT ) {
+			CG_InvokeForgeSpirit( cent );
+			break;
+		}
+		// portal ends draw their linked rings here too
+		if ( cent->currentState.generic1 == INVOKE_FX_PORTAL ) {
+			CG_InvokePortal( cent );
+			break;
+		}
 		CG_General( cent );
 		break;
 	case ET_PLAYER:

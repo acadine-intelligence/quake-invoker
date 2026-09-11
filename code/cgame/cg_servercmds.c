@@ -1047,6 +1047,65 @@ static void CG_ServerCommand( void ) {
 		return;
 	}
 
+	// Server-announced EMP charge: draw the ring until the burst lands.
+	// Sent to everyone, the ring is the burst's dodge cue. Argv(1) is the
+	// caster's entity number, which scopes any later cancel to that ring.
+	if ( !strcmp( cmd, "invemp" ) ) {
+		if ( trap_Argc() == 6 ) {
+			vec3_t origin;
+
+			origin[0] = atof( CG_Argv(2) );
+			origin[1] = atof( CG_Argv(3) );
+			origin[2] = atof( CG_Argv(4) );
+			CG_InvokeEmpCharge( atoi( CG_Argv(1) ), origin, atoi( CG_Argv(5) ) );
+		} else {
+			CG_Printf( "invemp: expected 5 args, got %i\n", trap_Argc() - 1 );
+		}
+		return;
+	}
+
+	// The server retracted a charge (the caster died or left the game):
+	// drop the ring now instead of drawing it until a burst time that will
+	// never arrive. Only the named caster's ring is ours to take down.
+	if ( !strcmp( cmd, "invempcancel" ) ) {
+		if ( trap_Argc() == 2 ) {
+			CG_InvokeEmpCancel( atoi( CG_Argv(1) ) );
+		} else {
+			CG_Printf( "invempcancel: expected 1 arg, got %i\n", trap_Argc() - 1 );
+		}
+		return;
+	}
+
+	// Server-announced weapon disarm: this player took a Deafening Blast.
+	if ( !strcmp( cmd, "invdeafen" ) ) {
+		if ( trap_Argc() == 2 ) {
+			CG_InvokeDisarm( atoi( CG_Argv(1) ) );
+		} else {
+			CG_Printf( "invdeafen: expected 1 arg, got %i\n", trap_Argc() - 1 );
+		}
+		return;
+	}
+
+	// Server-announced Cold Snap debuff: this player is chilled.
+	if ( !strcmp( cmd, "invchill" ) ) {
+		if ( trap_Argc() == 2 ) {
+			CG_InvokeChill( atoi( CG_Argv(1) ) );
+		} else {
+			CG_Printf( "invchill: expected 1 arg, got %i\n", trap_Argc() - 1 );
+		}
+		return;
+	}
+
+	// Server-announced Ice Wall slow: this player stands in a field.
+	if ( !strcmp( cmd, "invslow" ) ) {
+		if ( trap_Argc() == 2 ) {
+			CG_InvokeSlow( atoi( CG_Argv(1) ) );
+		} else {
+			CG_Printf( "invslow: expected 1 arg, got %i\n", trap_Argc() - 1 );
+		}
+		return;
+	}
+
 	if ( !strcmp( cmd, "print" ) ) {
 		CG_Printf( "%s", CG_Argv(1) );
 #ifdef MISSIONPACK

@@ -43,6 +43,17 @@ void CG_ResetInvokeEffects( void ) {
 	memset( cg.invokeHandSpells, 0, sizeof( cg.invokeHandSpells ) );
 	memset( cg.invokeHandFireTime, 0, sizeof( cg.invokeHandFireTime ) );
 	memset( cg.invokeCastTime, 0, sizeof( cg.invokeCastTime ) );
+	cg.invokeEmpStartTime = 0;
+	cg.invokeEmpEndTime = 0;
+	cg.invokeEmpCaster = -1;	// -1: no caster; 0 is a real client number
+	cg.invokeDeafenStartTime = 0;
+	cg.invokeDeafenEndTime = 0;
+	cg.invokeDisarmStartTime = 0;
+	cg.invokeDisarmEndTime = 0;
+	cg.invokeChillStartTime = 0;
+	cg.invokeChillEndTime = 0;
+	cg.invokeSlowStartTime = 0;
+	cg.invokeSlowEndTime = 0;
 	cg.invokeStrikeEndTime = 0;
 	// Physical held keys survive gameplay/visual resets until key-up.
 	cg.orbChangeTime = 0;
@@ -94,6 +105,122 @@ void CG_InvokeStrikeBeam( vec3_t start, vec3_t end ) {
 	VectorCopy( start, cg.invokeStrikeStart );
 	VectorCopy( end, cg.invokeStrikeEnd );
 	cg.invokeStrikeEndTime = cg.time + 600;
+}
+
+// The server announces each EMP charge with "invemp": where the burst sits
+// and how long the charge runs. The client draws the ring from cg state.
+void CG_InvokeEmpCharge( int caster, vec3_t origin, int duration ) {
+	if ( duration <= 0 ) {
+		return;
+	}
+	VectorCopy( origin, cg.invokeEmpOrigin );
+	cg.invokeEmpStartTime = cg.time;
+	cg.invokeEmpEndTime = cg.time + duration;
+	cg.invokeEmpCaster = caster;
+}
+
+// A caster's charge is retracted (death, disconnect). Only take the ring
+// down when it is the one on screen: another caster's charge may be the
+// one drawn here, and its dodge cue must survive. A cancel for an expired
+// window is a no-op: nothing of it remains on screen.
+void CG_InvokeEmpCancel( int caster ) {
+	if ( cg.invokeEmpEndTime <= cg.time || caster != cg.invokeEmpCaster ) {
+		return;
+	}
+	cg.invokeEmpStartTime = 0;
+	cg.invokeEmpEndTime = 0;
+	cg.invokeEmpCaster = -1;
+}
+
+// The burst hit this player: weapons are silent for the duration. The HUD
+// shows the window; without it a dry trigger reads as a broken gun.
+void CG_InvokeDisarm( int duration ) {
+	if ( duration <= 0 ) {
+		return;
+	}
+	cg.invokeDisarmStartTime = cg.time;
+	cg.invokeDisarmEndTime = cg.time + duration;
+}
+
+float CG_InvokeDisarmFraction( void ) {
+	int span;
+
+	if ( cg.invokeDisarmEndTime <= cg.time ) {
+		return 0.0f;
+	}
+	span = cg.invokeDisarmEndTime - cg.invokeDisarmStartTime;
+	if ( span <= 0 ) {
+		return 0.0f;
+	}
+	return ( cg.invokeDisarmEndTime - cg.time ) / (float)span;
+}
+
+// Cold Snap landed on this player: the debuff runs for its duration. The
+// HUD shows it; a chilled player needs to know a hit will freeze them.
+void CG_InvokeChill( int duration ) {
+	if ( duration <= 0 ) {
+		return;
+	}
+	cg.invokeChillStartTime = cg.time;
+	cg.invokeChillEndTime = cg.time + duration;
+}
+
+float CG_InvokeChillFraction( void ) {
+	int span;
+
+	if ( cg.invokeChillEndTime <= cg.time ) {
+		return 0.0f;
+	}
+	span = cg.invokeChillEndTime - cg.invokeChillStartTime;
+	if ( span <= 0 ) {
+		return 0.0f;
+	}
+	return ( cg.invokeChillEndTime - cg.time ) / (float)span;
+}
+
+// An Ice Wall field holds this player: the drag is felt directly, and the
+// bar names the source. Each notice refreshes the window; standing in the
+// field keeps it alive, leaving lets it drain.
+void CG_InvokeSlow( int duration ) {
+	// the slow is a shared one-window refresh: a notice extends it (or
+	// starts it) but can never shorten a live window
+	if ( duration <= 0 || cg.time + duration <= cg.invokeSlowEndTime ) {
+		return;
+	}
+	cg.invokeSlowStartTime = cg.time;
+	cg.invokeSlowEndTime = cg.time + duration;
+}
+
+float CG_InvokeSlowFraction( void ) {
+	int span;
+
+	if ( cg.invokeSlowEndTime <= cg.time ) {
+		return 0.0f;
+	}
+	span = cg.invokeSlowEndTime - cg.invokeSlowStartTime;
+	if ( span <= 0 ) {
+		return 0.0f;
+	}
+	return ( cg.invokeSlowEndTime - cg.time ) / (float)span;
+}
+
+// Alacrity: the caster's haste window, read straight from the player
+// state, so expiry, death and respawn clear the bar with no extra
+// plumbing. A "Speed" pickup rides the same slot and lights the bar.
+float CG_InvokeAlacrityFraction( void ) {
+	int end;
+
+	if ( !cg.snap ) {
+		return 0.0f;
+	}
+	end = cg.snap->ps.powerups[PW_HASTE];
+	if ( end <= cg.time ) {
+		return 0.0f;
+	}
+	if ( end - cg.time > ALACRITY_MS ) {
+		return 1.0f;
+	}
+	return ( end - cg.time ) / (float)ALACRITY_MS;
 }
 
 static void CG_InvokeFlashStart( void ) {
@@ -238,11 +365,216 @@ static void CG_InvokeSprite( const vec3_t origin, float radius,
 	trap_R_AddRefEntityToScene( &ent );
 }
 
+// World-anchored sprite without the first-person depth hack: EMP charges
+// sit in the level and must depth test like any other scenery.
+static void CG_InvokeWorldSprite( const vec3_t origin, float radius,
+	const vec4_t color, float brightness, float rotation ) {
+	refEntity_t ent;
+	int i;
+
+	memset( &ent, 0, sizeof( ent ) );
+	ent.reType = RT_SPRITE;
+	ent.customShader = cgs.media.railRingsShader;
+	VectorCopy( origin, ent.origin );
+	ent.radius = radius;
+	ent.rotation = rotation;
+	for ( i = 0; i < 3; i++ ) {
+		ent.shaderRGBA[i] = (byte)( 255 * color[i] * brightness );
+	}
+	ent.shaderRGBA[3] = 255;
+	trap_R_AddRefEntityToScene( &ent );
+}
+
+// The deafening blast: remember where the wave burst. CG_AddInvokeEffects
+// draws the expanding rings for the short window; nothing persists after.
+void CG_InvokeDeafenBurst( vec3_t origin ) {
+	VectorCopy( origin, cg.invokeDeafenOrigin );
+	cg.invokeDeafenStartTime = cg.time;
+	cg.invokeDeafenEndTime = cg.time + DEAFEN_BURST_MSEC;
+}
+
+// An ET_MISSILE carries an invoke marker only when it is one of ours: every
+// fire_invoke_* spawn sets WP_ROCKET_LAUNCHER alongside its marker (a spawn
+// that forgets the weapon renders nothing, so the smoke screenshots pin the
+// render). Missionpack prox mines carry their team (1 = red, 2 = blue) in
+// generic1, so the weapon check keeps them out of the invoke effects.
+qboolean CG_InvokeMissileMarker( const entityState_t *s, int marker ) {
+	if ( s->weapon == WP_ROCKET_LAUNCHER && s->generic1 == marker ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+// Tornado: a twisting column of sprites rigged to the missile entity, so
+// the vortex stays glued to the real (server-side) projectile. The missile
+// carries the INVOKE_FX_TORNADO marker instead of a weapon model.
+void CG_InvokeTornado( centity_t *cent ) {
+	const vec4_t col = { 0.45f, 0.75f, 1.0f, 1.0f };
+	int i;
+	float a, f;
+	vec3_t p;
+
+	for ( i = 0; i < TORNADO_SPRITES; i++ ) {
+		f = i / (float)( TORNADO_SPRITES - 1 );
+		a = cg.time * 0.010f + f * 4.2f;
+		p[0] = cent->lerpOrigin[0] + ( 10.0f + 44.0f * f ) * cos( a );
+		p[1] = cent->lerpOrigin[1] + ( 10.0f + 44.0f * f ) * sin( a );
+		p[2] = cent->lerpOrigin[2] - 26.0f + 128.0f * f;
+		CG_InvokeWorldSprite( p, 3.0f + 8.0f * ( 1.0f - f ), col,
+			0.30f + 0.55f * ( 1.0f - f ), a * 180.0f / M_PI );
+	}
+	trap_R_AddLightToScene( cent->lerpOrigin, 120, col[0], col[1], col[2] );
+}
+
+// Deafening Blast in flight: a bright pressure core with a short trail,
+// drawn from the INVOKE_FX_DEAFENING marker.
+void CG_InvokeBlastMissile( centity_t *cent ) {
+	const vec4_t col = { 0.85f, 0.80f, 1.0f, 1.0f };
+	vec3_t dir, p;
+	float len;
+	int i;
+
+	// normalize the flight direction without q_math: the host test builds
+	// cg_invoke.c on its own and has no engine math library
+	VectorCopy( cent->currentState.pos.trDelta, dir );
+	len = sqrt( dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2] );
+	if ( len > 0.001f ) {
+		VectorScale( dir, 1.0f / len, dir );
+	} else {
+		dir[0] = 0;
+		dir[1] = 0;
+		dir[2] = 1;
+	}
+	for ( i = 3; i >= 0; i-- ) {
+		VectorMA( cent->lerpOrigin, -16.0f * i, dir, p );
+		CG_InvokeWorldSprite( p, i ? 6.0f - 1.2f * i : 10.0f, col,
+			i ? 0.28f - 0.06f * i : 0.85f, 0 );
+	}
+	trap_R_AddLightToScene( cent->lerpOrigin, 150, col[0], col[1], col[2] );
+}
+
+// An Ice Wall field lies on the ground; the ring is drawn from the field
+// entity itself, so any number of fields draws at once and none outlives
+// its server-side lifetime. Bounded: 20 + 10 sprites per field.
+void CG_InvokeIceField( centity_t *cent ) {
+	const vec4_t col = { 0.55f, 0.85f, 1.0f, 1.0f };
+	float bloom, pulse, phase;
+	int i;
+	vec3_t p;
+
+	// a short bloom at spawn, clamped: any clock skew just skips it
+	bloom = 1.0f;
+	if ( cent->currentState.time && cg.time > cent->currentState.time ) {
+		bloom = ( cg.time - cent->currentState.time ) / 300.0f;
+		if ( bloom > 1.0f ) {
+			bloom = 1.0f;
+		}
+	}
+	if ( bloom < 0.3f ) {
+		bloom = 0.3f;
+	}
+	pulse = 0.7f + 0.2f * sin( cg.time * 0.004f );
+	phase = ( cg.time % 4000 ) * ( 2.0f * M_PI / 4000.0f );
+	for ( i = 0; i < ICE_FIELD_OUTER_STEPS; i++ ) {
+		float a = phase * 0.25f + i * ( 2.0f * M_PI / ICE_FIELD_OUTER_STEPS );
+
+		p[0] = cent->lerpOrigin[0] + 160 * bloom * cos( a );
+		p[1] = cent->lerpOrigin[1] + 160 * bloom * sin( a );
+		p[2] = cent->lerpOrigin[2] + 5 + 2 * sin( phase + i );
+		CG_InvokeWorldSprite( p, ( i % 2 ) ? 9.0f : 13.0f, col, pulse * bloom, a * 180 / M_PI );
+	}
+	for ( i = 0; i < ICE_FIELD_INNER_STEPS; i++ ) {
+		float a = -phase * 0.5f + i * ( 2.0f * M_PI / ICE_FIELD_INNER_STEPS );
+
+		p[0] = cent->lerpOrigin[0] + 88 * bloom * cos( a );
+		p[1] = cent->lerpOrigin[1] + 88 * bloom * sin( a );
+		p[2] = cent->lerpOrigin[2] + 8;
+		CG_InvokeWorldSprite( p, 7.0f, col, pulse * 0.7f * bloom, a * 180 / M_PI );
+	}
+	trap_R_AddLightToScene( cent->lerpOrigin, 200, 0.4f, 0.7f, 1.0f );
+}
+
+// Portal Pair: a face-on ring in the portal's own plane. End A runs a warm
+// current, end B a cool one, so a pair reads as two linked doors.
+void CG_InvokePortal( centity_t *cent ) {
+	const vec4_t colA = { 1.0f, 0.55f, 0.18f, 1.0f };
+	const vec4_t colB = { 0.35f, 0.65f, 1.0f, 1.0f };
+	const vec4_t *col = cent->currentState.frame ? &colB : &colA;
+	float phase = ( cg.time % 2000 ) * ( 2.0f * M_PI / 2000.0f );
+	float pulse = 0.65f + 0.25f * sin( cg.time * 0.006f );
+	vec3_t right, up, p;
+	int i;
+
+	AngleVectors( cent->currentState.apos.trBase, NULL, right, up );
+	for ( i = 0; i < PORTAL_RING_STEPS; i++ ) {
+		float a = phase + i * ( 2.0f * M_PI / PORTAL_RING_STEPS );
+
+		VectorMA( cent->lerpOrigin, 30.0f * cos( a ), right, p );
+		VectorMA( p, 30.0f * sin( a ), up, p );
+		CG_InvokeWorldSprite( p, 6.0f, *col, pulse, a * 180 / M_PI + cg.time * 0.1f );
+	}
+	for ( i = 0; i < PORTAL_INNER_STEPS; i++ ) {
+		float a = -phase * 1.6f + i * ( 2.0f * M_PI / PORTAL_INNER_STEPS );
+
+		VectorMA( cent->lerpOrigin, 13.0f * cos( a ), right, p );
+		VectorMA( p, 13.0f * sin( a ), up, p );
+		CG_InvokeWorldSprite( p, 4.0f, *col, pulse * 0.8f, a * 180 / M_PI );
+	}
+	trap_R_AddLightToScene( cent->lerpOrigin, 140, (*col)[0], (*col)[1], (*col)[2] );
+}
+
+// Forge Spirit: a small flame wisp of orbiting sprites plus a warm light.
+// The server moves the entity; this draw only follows its origin.
+void CG_InvokeForgeSpirit( centity_t *cent ) {
+	const vec4_t col = { 1.0f, 0.55f, 0.18f, 1.0f };
+	float pulse = 0.65f + 0.25f * sin( cg.time * 0.006f );
+	float phase = ( cg.time % 2400 ) * ( 2.0f * M_PI / 2400.0f );
+	int i;
+	vec3_t p;
+
+	for ( i = 0; i < FORGE_SPIRIT_STEPS; i++ ) {
+		float a = phase + i * ( 2.0f * M_PI / FORGE_SPIRIT_STEPS );
+		float r = 7.0f + 2.0f * sin( phase * 2.0f + i );
+
+		p[0] = cent->lerpOrigin[0] + r * cos( a );
+		p[1] = cent->lerpOrigin[1] + r * sin( a );
+		p[2] = cent->lerpOrigin[2] + 3.0f * sin( phase * 1.5f + i * 1.7f );
+		CG_InvokeWorldSprite( p, ( i % 2 ) ? 4.5f : 5.5f, col, pulse, a * 180 / M_PI );
+	}
+	trap_R_AddLightToScene( cent->lerpOrigin, 110, 1.0f, 0.55f, 0.18f );
+}
+
+// Spirit bolt: a short comet trail behind its flight direction, built from
+// the missile's own velocity so it reads as a dart even at long range.
+void CG_InvokeSpiritBolt( centity_t *cent ) {
+	const vec4_t col = { 1.0f, 0.6f, 0.2f, 1.0f };
+	vec3_t dir, p;
+	float len;
+	int i;
+
+	VectorCopy( cent->currentState.pos.trDelta, dir );
+	len = sqrt( dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2] );
+	if ( len <= 0.0f ) {
+		VectorSet( dir, 1, 0, 0 );
+	} else {
+		VectorScale( dir, 1.0f / len, dir );
+	}
+	for ( i = 0; i < FORGE_BOLT_STEPS; i++ ) {
+		float d = i * 8.0f;
+
+		p[0] = cent->lerpOrigin[0] - dir[0] * d;
+		p[1] = cent->lerpOrigin[1] - dir[1] * d;
+		p[2] = cent->lerpOrigin[2] - dir[2] * d;
+		CG_InvokeWorldSprite( p, 6.0f - i, col, 0.95f - 0.18f * i, i * 47.0f );
+	}
+	trap_R_AddLightToScene( cent->lerpOrigin, 120, 1.0f, 0.5f, 0.15f );
+}
+
 // Camera-relative motes orbit below the crosshair. No game entities or
 // particles accumulate: each frame submits a fixed, bounded render list.
 void CG_AddInvokeEffects( void ) {
 	int i, j, orb, held;
-	float angle, phase, fade, flash, progress;
+	float angle, phase, fade, flash, progress, span;
 	vec3_t origin;
 	vec4_t color;
 
@@ -278,6 +610,72 @@ void CG_AddInvokeEffects( void ) {
 		beam.reType = RT_LIGHTNING;
 		beam.customShader = cgs.media.lightningShader;
 		trap_R_AddRefEntityToScene( &beam );
+	}
+
+	// emp: an expanding charge ring at the burst point until it lands.
+	// A circle of sprites, not one billboard: a single sprite centred at
+	// the caster's feet sits below the frustum and gets culled.
+	if ( cg.invokeEmpEndTime > cg.time ) {
+		float charge = 0.0f;
+
+		span = cg.invokeEmpEndTime - cg.invokeEmpStartTime;
+		if ( span > 0 ) {
+			charge = ( cg.time - cg.invokeEmpStartTime ) / span;
+			if ( charge < 0 ) {
+				charge = 0;
+			}
+			if ( charge > 1 ) {
+				charge = 1;
+			}
+		}
+		for ( i = 0; i < EMP_RING_STEPS; i++ ) {
+			float	a = phase * 0.5f + i * ( 2.0f * M_PI / EMP_RING_STEPS );
+			vec3_t	p;
+
+			p[0] = cg.invokeEmpOrigin[0] + ( 24 + 200 * charge ) * cos( a );
+			p[1] = cg.invokeEmpOrigin[1] + ( 24 + 200 * charge ) * sin( a );
+			p[2] = cg.invokeEmpOrigin[2] + 2;
+			CG_InvokeWorldSprite( p, 5 + 15 * charge,
+				orbColors[ORB_WEX], 0.45f + 0.55f * charge, a * 180 / M_PI );
+		}
+		trap_R_AddLightToScene( cg.invokeEmpOrigin, 100 + 140 * charge,
+			0.35f, 0.6f, 1.0f );
+	}
+
+	// deafening blast: two flat rings leave the burst point as one wave
+	if ( cg.invokeDeafenEndTime > cg.time ) {
+		const vec4_t deafenCol = { 0.85f, 0.82f, 1.0f, 1.0f };
+		float wave = 0.0f;
+
+		span = cg.invokeDeafenEndTime - cg.invokeDeafenStartTime;
+		if ( span > 0 ) {
+			wave = ( cg.time - cg.invokeDeafenStartTime ) / span;
+			if ( wave < 0 ) {
+				wave = 0;
+			}
+			if ( wave > 1 ) {
+				wave = 1;
+			}
+		}
+		for ( j = 0; j < 2; j++ ) {
+			float r = 60 + 280 * wave - j * 70;
+
+			if ( r < 8 ) {
+				continue;
+			}
+			for ( i = 0; i < EMP_RING_STEPS; i++ ) {
+				float	a = i * ( 2.0f * M_PI / EMP_RING_STEPS );
+				vec3_t	p;
+
+				p[0] = cg.invokeDeafenOrigin[0] + r * cos( a );
+				p[1] = cg.invokeDeafenOrigin[1] + r * sin( a );
+				p[2] = cg.invokeDeafenOrigin[2] + 6;
+				CG_InvokeWorldSprite( p, j ? 3.0f : 5.0f, deafenCol,
+					( j ? 0.4f : 0.85f ) * ( 1.0f - wave ), a * 180 / M_PI );
+			}
+		}
+		trap_R_AddLightToScene( cg.invokeDeafenOrigin, 260 - 160 * wave,
+			0.7f, 0.72f, 1.0f );
 	}
 
 	flash = CG_InvokeFlash();
@@ -440,6 +838,54 @@ void CG_DrawOrbs( void ) {
 	if ( flash ) {
 		color[0] = 0.65f; color[1] = 0.80f; color[2] = 1.0f; color[3] = flash;
 		CG_FillRect( 16, 261, 186 * flash, 2, color );
+	}
+
+	// deafened: the burst hit THIS player. Warn under the crosshair with
+	// the time left on a bar; nothing else about the lockout is visible.
+	if ( cg.invokeDisarmEndTime > cg.time ) {
+		const vec4_t warnCol = { 0.98f, 0.62f, 0.20f, 1.0f };
+		const vec4_t warnBack = { 0.09f, 0.13f, 0.21f, 0.90f };
+		float left = CG_InvokeDisarmFraction();
+
+		CG_DrawStringExt( 272, 268, "WEAPONS DISABLED", warnCol, qtrue, qtrue, 6, 10, 0 );
+		CG_FillRect( 268, 281, 104, 5, warnBack );
+		CG_FillRect( 268, 281, 104 * left, 5, warnCol );
+	}
+
+	// chilled: a Cold Snap will freeze THIS player on the next hit taken,
+	// so the debuff runs on the HUD while it holds
+	if ( cg.invokeChillEndTime > cg.time ) {
+		const vec4_t chillCol = { 0.55f, 0.85f, 1.0f, 1.0f };
+		const vec4_t chillBack = { 0.09f, 0.13f, 0.21f, 0.90f };
+		float left = CG_InvokeChillFraction();
+
+		CG_DrawStringExt( 299, 292, "CHILLED", chillCol, qtrue, qtrue, 6, 10, 0 );
+		CG_FillRect( 268, 305, 104, 5, chillBack );
+		CG_FillRect( 268, 305, 104 * left, 5, chillCol );
+	}
+
+	// slowed: an Ice Wall field holds THIS player. The drag is felt
+	// directly; the bar names the source while it lasts.
+	if ( cg.invokeSlowEndTime > cg.time ) {
+		const vec4_t slowCol = { 0.55f, 0.85f, 1.0f, 1.0f };
+		const vec4_t slowBack = { 0.09f, 0.13f, 0.21f, 0.90f };
+		float left = CG_InvokeSlowFraction();
+
+		CG_DrawStringExt( 302, 316, "SLOWED", slowCol, qtrue, qtrue, 6, 10, 0 );
+		CG_FillRect( 268, 329, 104, 5, slowBack );
+		CG_FillRect( 268, 329, 104 * left, 5, slowCol );
+	}
+
+	// alacrity: this player's own haste window. The speed and fire-rate
+	// lift is felt directly; the bar names it and shows the time left.
+	if ( cg.snap && cg.snap->ps.powerups[PW_HASTE] > cg.time ) {
+		const vec4_t alacCol = { 1.0f, 0.83f, 0.25f, 1.0f };
+		const vec4_t alacBack = { 0.09f, 0.13f, 0.21f, 0.90f };
+		float left = CG_InvokeAlacrityFraction();
+
+		CG_DrawStringExt( 296, 340, "ALACRITY", alacCol, qtrue, qtrue, 6, 10, 0 );
+		CG_FillRect( 268, 353, 104, 5, alacBack );
+		CG_FillRect( 268, 353, 104 * left, 5, alacCol );
 	}
 	trap_R_SetColor( NULL );
 }

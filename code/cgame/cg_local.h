@@ -524,6 +524,20 @@ typedef struct {
 	int			invokeHandSpells[MAX_CLIENTS][INVOKE_HANDS];
 	int			invokeHandFireTime[MAX_CLIENTS][INVOKE_HANDS];
 	int			invokeCastTime[SPELL_NUM];	// local: cg.time of the last confirmed cast, per spell
+	int			invokeEmpStartTime;	// local: EMP charge window from "invemp"
+	int			invokeEmpEndTime;
+	vec3_t		invokeEmpOrigin;
+	int			invokeEmpCaster;	// entity number whose charge is on screen (-1 = none;
+										// single window, the newest charge draws)
+	int			invokeDeafenStartTime;	// local: Deafening Blast burst window
+	int			invokeDeafenEndTime;
+	vec3_t		invokeDeafenOrigin;
+	int			invokeDisarmStartTime;	// local: this player's weapon lockout
+	int			invokeDisarmEndTime;
+	int			invokeChillStartTime;	// local: this player's Cold Snap debuff
+	int			invokeChillEndTime;
+	int			invokeSlowStartTime;	// local: this player's Ice Wall slow
+	int			invokeSlowEndTime;
 
 	// auto rotating items
 	vec3_t		autoAngles;
@@ -1306,6 +1320,35 @@ void CG_InvokeStrikeBeam( vec3_t start, vec3_t end );
 void CG_InvokeMovementKey( int moveKey, qboolean down );
 void CG_InvokeHandFired( centity_t *cent, int hand, int weapon );
 void CG_InvokeSpellCast( int hand, int spell );
+#define EMP_RING_STEPS 24		// sprites that draw the EMP charge ring
+#define DEAFEN_BURST_MSEC 700	// lifetime of the deafening blast rings
+#define TORNADO_SPRITES 16		// sprites in the tornado column
+#define PORTAL_RING_STEPS 16	// sprites around a portal end
+#define PORTAL_INNER_STEPS 8
+#define ICE_FIELD_OUTER_STEPS 20	// sprites around an ice wall field
+#define ICE_FIELD_INNER_STEPS 10	// inner ring of the same field
+#define FORGE_SPIRIT_STEPS 6		// sprites in a forge spirit wisp
+#define FORGE_BOLT_STEPS 4			// sprites in a spirit bolt's trail
+void CG_InvokeEmpCharge( int caster, vec3_t origin, int duration );
+
+// The charge was retracted (the caster died or left the game): clear the
+// window when the ring on screen is that caster's.
+void CG_InvokeEmpCancel( int caster );
+void CG_InvokeDeafenBurst( vec3_t origin );
+void CG_InvokeDisarm( int duration );
+float CG_InvokeDisarmFraction( void );
+void CG_InvokeChill( int duration );
+float CG_InvokeChillFraction( void );
+void CG_InvokeSlow( int duration );
+float CG_InvokeSlowFraction( void );
+float CG_InvokeAlacrityFraction( void );
+void CG_InvokeIceField( centity_t *cent );
+void CG_InvokePortal( centity_t *cent );
+void CG_InvokeTornado( centity_t *cent );
+void CG_InvokeBlastMissile( centity_t *cent );
+void CG_InvokeForgeSpirit( centity_t *cent );
+void CG_InvokeSpiritBolt( centity_t *cent );
+qboolean CG_InvokeMissileMarker( const entityState_t *s, int marker );
 float CG_InvokeReadyFraction( int now, int castTime, int cooldown );
 void CG_AddInvokeEffects( void );
 void CG_DrawOrbs( void );

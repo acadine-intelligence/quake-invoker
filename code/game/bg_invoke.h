@@ -40,6 +40,16 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define INVOKE_MANA_MAX			100
 #define INVOKE_MANA_REGEN_PER_SEC	4
 
+// Effect marker carried in entityState_t.generic1 by invoke spell missiles:
+// the cgame draws these from the marker instead of a weapon model or trail.
+#define INVOKE_FX_NONE			0
+#define INVOKE_FX_TORNADO		1
+#define INVOKE_FX_DEAFENING		2
+#define INVOKE_FX_ICEWALL		3
+#define INVOKE_FX_FORGE_SPIRIT	4
+#define INVOKE_FX_SPIRIT_BOLT	5
+#define INVOKE_FX_PORTAL		6
+
 #define INVOKE_MOVE_W		0x01
 #define INVOKE_MOVE_A		0x02
 #define INVOKE_MOVE_S		0x04
@@ -72,6 +82,7 @@ typedef enum {
 	SPELL_ALACRITY,
 	SPELL_CHAOS_METEOR,
 	SPELL_SUNSTRIKE,
+	SPELL_PORTAL,
 	SPELL_NUM
 } spellType_t;
 
@@ -83,6 +94,76 @@ typedef struct {
 
 extern const spellDef_t bg_spells[];
 const spellDef_t *BG_SpellDef( int spell );
+
+// Cold Snap debuff state, shared so the host tests exercise the same rules
+// the server runs. until/nextTrigger/freezeUntil are level.time stamps.
+typedef struct {
+	int	until;			// level.time the debuff ends (0 = none active)
+	int	nextTrigger;	// earliest level.time a hit may trigger a freeze;
+						// one floor per victim, shared by every caster
+	int	freezeUntil;	// level.time the triggered freeze ends
+} chillState_t;
+
+#define COLD_SNAP_DEBUFF_MS		5000
+#define COLD_SNAP_TRIGGER_MS	900
+#define COLD_SNAP_FREEZE_MS		250
+
+void BG_InvokeChillClear( chillState_t *chill );
+void BG_InvokeChillApply( chillState_t *chill, int now );
+qboolean BG_InvokeChillCanTrigger( const chillState_t *chill, int now,
+	qboolean ownDamage );
+void BG_InvokeChillTriggered( chillState_t *chill, int now );
+
+// Ice Wall slow state, shared so the host tests exercise the same rules.
+// Any number of fields may cover one player; each refresh of `until` is a
+// replacement, never an addition, so overlapping fields cannot multiply
+// the slow. The movement scale lives with the server (G_InvokeClientSlowed).
+typedef struct {
+	int	until;			// level.time the slow holds until (0 = none)
+} slowState_t;
+
+#define ICE_WALL_SLOW_GRACE_MS	400
+#define ICE_WALL_SLOW_SCALE		0.6f	// movement multiplier while slowed
+
+void BG_InvokeSlowClear( slowState_t *slow );
+void BG_InvokeSlowRefresh( slowState_t *slow, int now );
+qboolean BG_InvokeSlowActive( const slowState_t *slow, int now );
+
+// Alacrity rides the engine's haste powerup: move speed, weapon fire
+// intervals and hand cooldowns already read PW_HASTE in the shared code.
+// A cast moves the expiry stamp forward and never pulls it back, so
+// recasts refresh the window, cannot stack it, and a longer window from a
+// Speed item survives the cast. Weapon damage composes with quad through
+// the scale helper, which the host tests exercise.
+#define ALACRITY_MS			8000
+#define ALACRITY_DAMAGE_SCALE	1.3f
+
+void BG_InvokeHasteExtend( int *powerupEnd, int now );
+float BG_InvokeWeaponDamageScale( float base, int hasteActive );
+
+// Armor shred (Forge Spirit bolts), shared with the host tests like the
+// other debuff rules. A hit cracks the victim's protection for a window;
+// a second hit refreshes it and hits never stack.
+#define ARMOR_SHRED_MS		4000
+#define ARMOR_SHRED_SCALE	0.6f
+
+typedef struct {
+	int	until;			// level.time the shred ends (0 = none active)
+} shredState_t;
+
+void BG_InvokeShredClear( shredState_t *shred );
+void BG_InvokeShredApply( shredState_t *shred, int now );
+qboolean BG_InvokeShredActive( const shredState_t *shred, int now );
+float		BG_InvokeShredScale( const shredState_t *shred, int now );
+
+// Portal Pair (QEW): shared tuning plus the pair and exit rules.
+#define PORTAL_RANGE			600
+#define PORTAL_EXIT_OFFSET		24
+#define PORTAL_EXIT_SPEED_CAP	700
+#define PORTAL_MIN_SEPARATION	48
+#define PORTAL_TRAVEL_COOLDOWN_MS 500
+qboolean	BG_InvokePortalTooClose( const vec3_t a, const vec3_t b );
+void		BG_InvokePortalExitVelocity( const vec3_t inVel, const vec3_t exitNormal, vec3_t out );
 
 // Server-authoritative hand assignment and per-item timing. nextFireTime is
 // indexed by weapon so duplicate weapons in both hands necessarily share it;

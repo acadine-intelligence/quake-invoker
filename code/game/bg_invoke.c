@@ -33,7 +33,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // Ordered recipe table: the exact sequence of the three held orbs
 // (oldest first) selects the invocation. Ten classic spells, nine stock
 // weapons, one portal pair, seven reserved slots. Weapons are castable;
-// Ghost Walk and Sunstrike are castable; the remaining spells and the
+// eight of the ten classic spells cast today; the remaining two and the
 // portal report "not castable yet" until their own passes land. Mapping
 // rationale: docs/design/04-ordered-spells.md.
 const invocation_t bg_invocations[] = {
@@ -44,7 +44,7 @@ const invocation_t bg_invocations[] = {
 	{ INVOKE_KIND_SPELL,	WP_NONE,			0,	SPELL_TORNADO,		"Tornado",			"QWW" },
 	{ INVOKE_KIND_SPELL,	WP_NONE,			0,	SPELL_DEAFENING_BLAST,	"Deafening Blast",	"QWE" },
 	{ INVOKE_KIND_WEAPON,	WP_SHOTGUN,			15,	SPELL_NONE,			"Shotgun",			"QEQ" },
-	{ INVOKE_KIND_PORTAL,	WP_NONE,			0,	SPELL_NONE,			"Portal Pair",		"QEW" },
+	{ INVOKE_KIND_PORTAL,	WP_NONE,			0,	SPELL_PORTAL,		"Portal Pair",		"QEW" },
 	{ INVOKE_KIND_SPELL,	WP_NONE,			0,	SPELL_FORGE_SPIRIT,	"Forge Spirit",		"QEE" },
 	{ INVOKE_KIND_WEAPON,	WP_GAUNTLET,		-1,	SPELL_NONE,			"Gauntlet",			"WQQ" },
 	{ INVOKE_KIND_WEAPON,	WP_ROCKET_LAUNCHER,	15,	SPELL_NONE,			"Rocket Launcher",	"WQW" },
@@ -81,7 +81,8 @@ const spellDef_t bg_spells[] = {
 	{ "EMP",			45,		30000 },
 	{ "Alacrity",		30,		20000 },
 	{ "Chaos Meteor",	55,		35000 },
-	{ "Sunstrike",		45,		24000 }
+	{ "Sunstrike",		45,		24000 },
+	{ "Portal Pair",	15,		1500 }
 };
 typedef char bg_invoke_spell_table_fits[( ARRAY_LEN( bg_spells ) == SPELL_NUM ) ? 1 : -1];
 
@@ -90,6 +91,132 @@ const spellDef_t *BG_SpellDef( int spell ) {
 		return NULL;
 	}
 	return &bg_spells[spell];
+}
+
+/*
+==============
+BG_InvokeChillClear / Apply / CanTrigger / Triggered
+
+Cold Snap's debuff rules, kept here so the host tests and the server run
+the same code. A hit triggers the freeze and the extra damage only when
+the debuff holds, the internal interval has elapsed, and the damage did
+not come from Cold Snap itself (its own damage must never recurse).
+==============
+*/
+void BG_InvokeChillClear( chillState_t *chill ) {
+	chill->until = 0;
+	chill->nextTrigger = 0;
+	chill->freezeUntil = 0;
+}
+
+void BG_InvokeChillApply( chillState_t *chill, int now ) {
+	if ( !chill->until || now >= chill->until ) {
+		// a fresh snap may trigger on the very next hit
+		chill->nextTrigger = 0;
+	}
+	// every snap refreshes the debuff, but a live interval or freeze
+	// keeps its own end: recasts never shorten the victim's floor
+	chill->until = now + COLD_SNAP_DEBUFF_MS;
+}
+
+qboolean BG_InvokeChillCanTrigger( const chillState_t *chill, int now,
+	qboolean ownDamage ) {
+	if ( !chill->until || now >= chill->until ) {
+		return qfalse;
+	}
+	if ( ownDamage ) {
+		return qfalse;
+	}
+	if ( now < chill->nextTrigger ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+void BG_InvokeChillTriggered( chillState_t *chill, int now ) {
+	chill->nextTrigger = now + COLD_SNAP_TRIGGER_MS;
+	chill->freezeUntil = now + COLD_SNAP_FREEZE_MS;
+}
+
+/*
+==============
+BG_InvokeSlowClear / Refresh / Active
+
+Ice Wall's slow rules, kept here so the host tests and the server run the
+same code. Every field covering a player refreshes the same stamp, so the
+slow is a single window no matter how many fields overlap.
+==============
+*/
+void BG_InvokeSlowClear( slowState_t *slow ) {
+	slow->until = 0;
+}
+
+void BG_InvokeSlowRefresh( slowState_t *slow, int now ) {
+	slow->until = now + ICE_WALL_SLOW_GRACE_MS;
+}
+
+qboolean BG_InvokeSlowActive( const slowState_t *slow, int now ) {
+	if ( !slow->until || now >= slow->until ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+/*
+==============
+BG_InvokeHasteExtend / BG_InvokeWeaponDamageScale
+
+Alacrity's rules, kept here so the host tests and the server run the same
+code. The haste powerup's expiry stamp is the whole state: a cast moves it
+forward and never pulls it back, so recasts refresh the window and cannot
+stack. The damage scale multiplies the base (quad) factor so the two
+buffs compose instead of replacing each other; only classic weapons pass
+through it, spells do not.
+==============
+*/
+void BG_InvokeHasteExtend( int *powerupEnd, int now ) {
+	if ( *powerupEnd < now + ALACRITY_MS ) {
+		*powerupEnd = now + ALACRITY_MS;
+	}
+}
+
+float BG_InvokeWeaponDamageScale( float base, int hasteActive ) {
+	if ( hasteActive ) {
+		return base * ALACRITY_DAMAGE_SCALE;
+	}
+	return base;
+}
+
+/*
+==============
+BG_InvokeShredClear / BG_InvokeShredApply / BG_InvokeShredActive /
+BG_InvokeShredScale
+
+Forge Spirit bolts crack the victim's armor: while the shred window holds,
+CheckArmor gives the victim less protection. One window per victim and a
+second hit refreshes it. Kept here so the host tests run the same rules.
+==============
+*/
+void BG_InvokeShredClear( shredState_t *shred ) {
+	shred->until = 0;
+}
+
+void BG_InvokeShredApply( shredState_t *shred, int now ) {
+	shred->until = now + ARMOR_SHRED_MS;
+}
+
+qboolean BG_InvokeShredActive( const shredState_t *shred, int now ) {
+	if ( !shred->until || now >= shred->until ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+float BG_InvokeShredScale( const shredState_t *shred, int now ) {
+	if ( BG_InvokeShredActive( shred, now ) ) {
+		return ARMOR_SHRED_SCALE;
+	}
+	return 1.0f;
 }
 
 /*
@@ -315,6 +442,38 @@ int BG_InvokePackedHands( const invokeHands_t *hands ) {
 int BG_InvokePackedSpells( const invokeHands_t *hands ) {
 	return BG_InvokeHandSpell( hands, INVOKE_HAND_LEFT )
 		| ( BG_InvokeHandSpell( hands, INVOKE_HAND_RIGHT ) << 4 );
+}
+
+/*
+==============
+BG_InvokePortalTooClose
+
+Portal ends closer than PORTAL_MIN_SEPARATION are refused: an exit pressed
+against its own entrance would bounce the traveller straight back.
+==============
+*/
+qboolean BG_InvokePortalTooClose( const vec3_t a, const vec3_t b ) {
+	vec3_t delta;
+
+	VectorSubtract( a, b, delta );
+	return VectorLengthSquared( delta ) < ( PORTAL_MIN_SEPARATION * PORTAL_MIN_SEPARATION );
+}
+
+/*
+==============
+BG_InvokePortalExitVelocity
+
+Exits keep the entry speed along the exit face's normal, capped so a long
+chain of portals cannot compound into runaway velocity.
+==============
+*/
+void BG_InvokePortalExitVelocity( const vec3_t inVel, const vec3_t exitNormal, vec3_t out ) {
+	float speed = (float)sqrt( inVel[0] * inVel[0] + inVel[1] * inVel[1] + inVel[2] * inVel[2] );
+
+	if ( speed > PORTAL_EXIT_SPEED_CAP ) {
+		speed = PORTAL_EXIT_SPEED_CAP;
+	}
+	VectorScale( exitNormal, speed, out );
 }
 
 int BG_InvokeWeaponCooldown( int weapon ) {

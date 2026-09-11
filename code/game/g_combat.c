@@ -310,7 +310,14 @@ char	*modNames[] = {
 	"MOD_JUICED",
 #endif
 	"MOD_GRAPPLE",
-	"MOD_SUNSTRIKE"
+	"MOD_SUNSTRIKE",
+	"MOD_EMP",
+	"MOD_CHAOS_METEOR",
+	"MOD_CHAOS_METEOR_SPLASH",
+	"MOD_DEAFENING_BLAST",
+	"MOD_COLD_SNAP",
+	"MOD_ICE_WALL",
+	"MOD_FORGE_BOLT"
 };
 
 #ifdef MISSIONPACK
@@ -690,7 +697,8 @@ int CheckArmor (gentity_t *ent, int damage, int dflags)
 
 	// armor
 	count = client->ps.stats[STAT_ARMOR];
-	save = ceil( damage * ARMOR_PROTECTION );
+	// a spirit bolt's shred weakens the plate while its window holds
+	save = ceil( damage * ARMOR_PROTECTION * G_InvokeArmorScale( ent ) );
 	if (save >= count)
 		save = count;
 
@@ -1046,6 +1054,11 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		}
 	}
 
+	// invoker reaction: a surviving chilled client may freeze and take
+	// the Cold Snap trigger damage
+	if ( targ->client && take > 0 && targ->health > 0 ) {
+		G_InvokeDamageTaken( targ, attacker, dir, mod );
+	}
 }
 
 

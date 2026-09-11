@@ -272,6 +272,122 @@ int main( void ) {
 	BG_InvokeManaRegen( &hands, 1000 );
 	CHECK( hands.mana == INVOKE_MANA_MAX, "regen stops at the cap" );
 
+	// cold snap: the debuff window, the trigger interval, and the
+	// no-recursion rule all follow the shared state machine
+	{
+		chillState_t chill;
+
+		memset( &chill, 0, sizeof( chill ) );
+		CHECK( !BG_InvokeChillCanTrigger( &chill, 1000, qfalse ),
+			"no debuff, no trigger" );
+		BG_InvokeChillApply( &chill, 1000 );
+		CHECK( BG_InvokeChillCanTrigger( &chill, 1000, qfalse ),
+			"a fresh debuff triggers on the next hit" );
+		BG_InvokeChillTriggered( &chill, 1000 );
+		CHECK( chill.freezeUntil == 1000 + COLD_SNAP_FREEZE_MS,
+			"a trigger starts the freeze window" );
+		CHECK( !BG_InvokeChillCanTrigger( &chill, 1000, qfalse ),
+			"a second hit inside the interval does not trigger" );
+		CHECK( BG_InvokeChillCanTrigger( &chill, 1000 + COLD_SNAP_TRIGGER_MS, qfalse ),
+			"the trigger comes back after the interval" );
+		CHECK( !BG_InvokeChillCanTrigger( &chill, 1500, qtrue ),
+			"its own damage never recurses" );
+		// at the interval boundary the no-recursion rule is what blocks:
+		// the same moment with enemy damage triggers (see above)
+		CHECK( !BG_InvokeChillCanTrigger( &chill, 1000 + COLD_SNAP_TRIGGER_MS, qtrue ),
+			"own damage is what blocks at the boundary" );
+		// a recast while the debuff is live keeps the victim's floor: a
+		// second caster cannot generate a freeze sooner than 900 ms
+		{
+			chillState_t recast;
+
+			memset( &recast, 0, sizeof( recast ) );
+			BG_InvokeChillApply( &recast, 1000 );
+			BG_InvokeChillTriggered( &recast, 1000 );
+			BG_InvokeChillApply( &recast, 1200 );
+			CHECK( recast.nextTrigger == 1000 + COLD_SNAP_TRIGGER_MS,
+				"a recast keeps the trigger floor" );
+			CHECK( !BG_InvokeChillCanTrigger( &recast, 1250, qfalse ),
+				"no second freeze inside the floor" );
+			CHECK( recast.until == 1200 + COLD_SNAP_DEBUFF_MS,
+				"but the recast still refreshes the debuff" );
+			CHECK( BG_InvokeChillCanTrigger( &recast, 1000 + COLD_SNAP_TRIGGER_MS, qfalse ),
+				"the floor still elapses at 900 ms" );
+		}
+		CHECK( !BG_InvokeChillCanTrigger( &chill, 1000 + COLD_SNAP_DEBUFF_MS, qfalse ),
+			"an expired debuff cannot trigger" );
+		BG_InvokeChillClear( &chill );
+		CHECK( !BG_InvokeChillCanTrigger( &chill, 1500, qfalse ),
+			"a cleared debuff cannot trigger" );
+	}
+
+	// ice wall: the slow window refreshes without stacking, so any number
+	// of overlapping fields is still one slow
+	{
+		slowState_t slow;
+
+		memset( &slow, 0, sizeof( slow ) );
+		CHECK( !BG_InvokeSlowActive( &slow, 1000 ), "no field, no slow" );
+		BG_InvokeSlowRefresh( &slow, 1000 );
+		CHECK( BG_InvokeSlowActive( &slow, 1000 ), "a field starts the slow" );
+		CHECK( slow.until == 1000 + ICE_WALL_SLOW_GRACE_MS,
+			"the refresh sets the grace window" );
+		BG_InvokeSlowRefresh( &slow, 1000 );
+		CHECK( slow.until == 1000 + ICE_WALL_SLOW_GRACE_MS,
+			"a second field the same tick cannot extend it further" );
+		CHECK( BG_InvokeSlowActive( &slow, 1000 + ICE_WALL_SLOW_GRACE_MS - 1 ),
+			"the slow holds to the end of its window" );
+		CHECK( !BG_InvokeSlowActive( &slow, 1000 + ICE_WALL_SLOW_GRACE_MS ),
+			"the slow expires on its own" );
+		BG_InvokeSlowRefresh( &slow, 1200 );
+		CHECK( slow.until == 1200 + ICE_WALL_SLOW_GRACE_MS,
+			"a later refresh moves the window, never multiplies it" );
+		BG_InvokeSlowClear( &slow );
+		CHECK( !BG_InvokeSlowActive( &slow, 1300 ), "a cleared slow is gone" );
+	}
+
+	// alacrity: the haste window refreshes, never stacks or shortens
+	{
+		int haste = 0;
+
+		BG_InvokeHasteExtend( &haste, 1000 );
+		CHECK( haste == 1000 + ALACRITY_MS, "a cast sets the haste window" );
+		BG_InvokeHasteExtend( &haste, 1500 );
+		CHECK( haste == 1500 + ALACRITY_MS,
+			"a recast refreshes it to the new cast" );
+		haste = 1000 + 30 * 1000;	// a Speed item's longer window
+		BG_InvokeHasteExtend( &haste, 1000 );
+		CHECK( haste == 1000 + 30 * 1000, "a longer window survives a cast" );
+	}
+
+	// alacrity: haste multiplies classic weapon damage, with or without quad
+	{
+		CHECK( BG_InvokeWeaponDamageScale( 1.0f, 0 ) == 1.0f,
+			"no haste means no weapon damage bonus" );
+		CHECK( BG_InvokeWeaponDamageScale( 1.0f, 1 ) == ALACRITY_DAMAGE_SCALE,
+			"haste scales weapon damage by its factor" );
+		CHECK( BG_InvokeWeaponDamageScale( 3.0f, 1 ) == 3.0f * ALACRITY_DAMAGE_SCALE,
+			"haste multiplies the quad factor instead of replacing it" );
+	}
+
+	// armor shred: one window, refreshed by a second bolt, never stacked
+	{
+		shredState_t shred;
+
+		memset( &shred, 0, sizeof( shred ) );
+		CHECK( !BG_InvokeShredActive( &shred, 1000 ), "no shred before a bolt lands" );
+		CHECK( BG_InvokeShredScale( &shred, 1000 ) == 1.0f, "full protection without shred" );
+		BG_InvokeShredApply( &shred, 1000 );
+		CHECK( BG_InvokeShredActive( &shred, 1000 + ARMOR_SHRED_MS - 1 ), "the shred window holds" );
+		CHECK( BG_InvokeShredScale( &shred, 1500 ) == ARMOR_SHRED_SCALE, "shred weakens armor while it holds" );
+		BG_InvokeShredApply( &shred, 1500 );
+		CHECK( shred.until == 1500 + ARMOR_SHRED_MS, "a second bolt refreshes, never stacks" );
+		CHECK( !BG_InvokeShredActive( &shred, 1500 + ARMOR_SHRED_MS ), "the shred window ends on time" );
+		CHECK( BG_InvokeShredScale( &shred, 1500 + ARMOR_SHRED_MS ) == 1.0f, "protection returns after the window" );
+		BG_InvokeShredClear( &shred );
+		CHECK( !BG_InvokeShredActive( &shred, 1600 ), "a cleared shred is gone" );
+	}
+
 	// every classic spell recipe maps to its definition, and no other
 	// recipe carries a spell ID
 	{
@@ -280,7 +396,7 @@ int main( void ) {
 
 		for ( i = 0; i < bg_numInvocations; i++ ) {
 			inv = &bg_invocations[i];
-			if ( inv->kind == INVOKE_KIND_SPELL ) {
+			if ( inv->kind == INVOKE_KIND_SPELL || inv->kind == INVOKE_KIND_PORTAL ) {
 				def = BG_SpellDef( inv->spell );
 				if ( !def || strcmp( def->name, inv->name ) || def->cost <= 0
 					|| def->cooldown <= 0 || def->cost > INVOKE_MANA_MAX ) {
@@ -294,7 +410,33 @@ int main( void ) {
 				tableOk = 0;
 			}
 		}
-		CHECK( tableOk && seen == 10, "all ten classic spells have matching definitions" );
+		CHECK( tableOk && seen == 11, "all classic spell recipes and the portal pair have matching definitions" );
+	}
+
+	// the portal pair refuses ends that are too close, and the exit
+	// transform preserves entry speed along the exit face
+	{
+		vec3_t a = { 100, 100, 100 }, b, out;
+
+		VectorSet( b, a[0] + PORTAL_MIN_SEPARATION - 1, a[1], a[2] );
+		CHECK( BG_InvokePortalTooClose( a, b ), "ends closer than the floor are refused" );
+		VectorSet( b, a[0] + PORTAL_MIN_SEPARATION, a[1], a[2] );
+		CHECK( !BG_InvokePortalTooClose( a, b ), "the floor distance itself is fine" );
+		VectorSet( b, a[0] + PORTAL_MIN_SEPARATION + 40, a[1], a[2] );
+		CHECK( !BG_InvokePortalTooClose( a, b ), "far ends are fine" );
+
+		VectorSet( b, 0, 1, 0 );		// exit face normal
+		VectorSet( a, 600, 0, 0 );	// entry velocity into the face
+		BG_InvokePortalExitVelocity( a, b, out );
+		CHECK( out[0] == 0.0f && out[1] == 600.0f && out[2] == 0.0f,
+			"a fast entry exits along the face at full speed" );
+		VectorSet( a, 2000, 0, 0 );
+		BG_InvokePortalExitVelocity( a, b, out );
+		CHECK( out[1] == PORTAL_EXIT_SPEED_CAP, "runaway speed is capped" );
+		VectorSet( a, 0, 0, 0 );
+		BG_InvokePortalExitVelocity( a, b, out );
+		CHECK( out[0] == 0.0f && out[1] == 0.0f && out[2] == 0.0f,
+			"a standstill exits at a standstill" );
 	}
 
 	printf( "%s (%d failures)\n", fails ? "TESTS FAILED" : "ALL TESTS PASSED", fails );

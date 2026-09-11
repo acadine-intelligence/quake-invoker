@@ -1,6 +1,6 @@
 # Ordered invocation and classic spells
 
-Status: ordered recipes, the shared mana pool, and the first two classic spells implemented and verified in-engine (2026-09-10). Invoking resolves the exact orb sequence against the 27-entry table; weapon recipes equip a hand; Ghost Walk (Q,Q,W) and Sunstrike (E,E,E) equip a hand and cast on that hand's fire button, spending mana and starting their cooldown; every other spell, the portal, and reserved entries report "not castable yet" without granting anything. The remaining eight spell behaviors are not implemented yet. This target supersedes the order-independent recipe target in `01-invoker-mechanics.md`; that document and `05-dual-hands.md` describe the earlier slices.
+Status: ordered recipes, the shared mana pool, and all ten classic spells implemented and verified in-engine (2026-09-11). Invoking resolves the exact orb sequence against the 27-entry table; weapon recipes equip a hand; Ghost Walk (Q,Q,W), Sunstrike (E,E,E), EMP (W,W,W), Chaos Meteor (W,E,E), Tornado (Q,W,W), Deafening Blast (Q,W,E), Cold Snap (Q,Q,Q), Ice Wall (Q,Q,E), Alacrity (W,W,E), and Forge Spirit (Q,E,E) equip a hand and cast on that hand's fire button, spending mana and starting their cooldown; the Portal Pair (Q,E,W) places a two-way shortcut in two shots; reserved entries report "not castable yet" without granting anything. This target supersedes the order-independent recipe target in `01-invoker-mechanics.md`; that document and `05-dual-hands.md` describe the earlier slices.
 
 ## Requested behavior
 
@@ -100,22 +100,40 @@ These descriptions specify distinct gameplay. They do not claim to reproduce a p
 
 | Spell | FPS behavior | Required proof |
 |-------|--------------|----------------|
-| Cold Snap | Aim at an enemy to apply a debuff. Subsequent qualifying damage causes brief freezes and additional damage, with an internal trigger cooldown. | Repeated hits trigger at the allowed interval. Its own damage cannot recurse into another trigger. |
-| Ice Wall | Place a short-lived ice field across the ground ahead. Enemies inside take periodic damage and move more slowly. | Crossing applies the slow and damage. Leaving or expiry removes the slow. Overlapping fields cannot multiply the slow indefinitely. |
-| Forge Spirit | Summon a damageable companion that follows the caster and attacks enemies with armor-reducing fire projectiles. | It acquires a valid enemy, deals damage, reduces armor, and disappears on death or expiry. It respects collision and an owner-specific population cap. |
+| Cold Snap | Aim at an enemy to apply a debuff. Subsequent qualifying damage causes brief freezes and additional damage, with an internal trigger cooldown. The built Cold Snap follows this spec: a 1000-unit aim; a 5 s debuff; any damage except the trigger's own freezes the chilled player for 250 ms and adds 15 damage, at most once per 900 ms. The freeze is a full brief lock: no movement, no jump, no weapon fire, no hand casts (movement and firing both ride state the client predicts, so it cannot desync). Only damage that removes health triggers; a hit fully absorbed by armor does not. The 900 ms floor is one floor per victim, shared by every caster, and a recast cannot shorten it. | Repeated hits trigger at the allowed interval. Its own damage cannot recurse into another trigger. |
+| Ice Wall | Place a short-lived ice field across the ground ahead. Enemies inside take periodic damage and move more slowly. The built Ice Wall follows this spec: a 600-unit aim ray settles the field on the floor, held 64 units clear of a wall it hits; 6 s lifetime; everyone except the caster inside 170 units moves at 0.6x after a 400 ms grace and takes 8 damage every 500 ms. | Crossing applies the slow and damage. Leaving or expiry removes the slow. Overlapping fields cannot multiply the slow indefinitely. |
+| Forge Spirit | Summon a damageable companion that follows the caster and attacks enemies with armor-reducing fire projectiles. | It acquires a valid enemy, deals damage, reduces armor, and disappears on death or expiry. It respects collision and an owner-specific population cap. The built Forge Spirit follows this spec: 60 mana, a 40 s cooldown; it hovers near the caster, fires 9-damage armor-shredding bolts at the nearest visible enemy, and dies with its caster, on its 30 s expiry or when its 60 health run out, within a two-per-caster cap (a summon at the cap dismisses the oldest). |
 | Ghost Walk | Become invisible and apply a short-range slow to nearby enemies. Casting an offensive ability or firing a weapon ends invisibility. | Remote observers and enemy targeting reflect invisibility. Reveal and expiry remove the associated state. |
-| Tornado | Launch a travelling vortex that lifts enemies caught along its path. | Targets gain vertical displacement, land safely, and regain normal movement. Solid walls stop the vortex. |
-| EMP | Mark an area, then discharge after a delay. Affected enemies lose armor and mana. | Equipped enemies actually reach zero armor and mana. Resources cannot become negative. It has no direct health damage in this proposed adaptation. |
-| Alacrity | Apply a temporary weapon attack-speed and damage buff to the caster. | Weapon shot intervals and damage change while active, then return to normal. Repeated applications do not multiply the buff. |
+| Tornado | Launch a travelling vortex that lifts enemies caught along its path. | Targets gain vertical displacement, land safely, and regain normal movement. Solid walls stop the vortex. The built Tornado follows this spec: level flight for up to 1.5 s, a 170-unit lift radius, and a quiet stop at solid walls. |
+| EMP | Mark an area, then discharge after a delay. Affected enemies lose armor and mana. | Equipped enemies actually reach zero armor and mana. Resources cannot become negative. It has no direct health damage in this proposed adaptation. The built EMP differs: 70 damage plus a shove, no resource drain (see 05-dual-hands.md). |
+| Alacrity | Apply a temporary weapon attack-speed and damage buff to the caster. | Weapon shot intervals and damage change while active, then return to normal. Repeated applications do not multiply the buff. The built Alacrity follows this spec: 30 mana, a 20 s cooldown and an 8 s window. It rides the engine's haste powerup, which already lifts move speed and shortens weapon fire intervals and hand cooldowns by 1.3; classic weapon damage is multiplied by 1.3 for the window. Recasts refresh the window, cannot stack it, and a longer Speed-item window survives the cast. Spell damage does not take the weapon-damage bonus. |
 | Chaos Meteor | Send a burning meteor along the ground, with impact damage and a burning trail. | It moves across valid ground, hits targets, and applies timed burn damage. Walls and expiry end it. |
 | Sunstrike | Mark the aimed ground position and produce a delayed, narrow strike that bypasses armor. | The strike occurs at the recorded position after its delay. Damage follows the documented armor rule and radius. |
-| Deafening Blast | Fire a broad pressure wave that damages and pushes enemies back, temporarily preventing weapon fire. | Impact changes velocity and damage. Weapon fire resumes when the disarm expires. Spell casting follows an explicit disarm rule. |
+| Deafening Blast | Fire a broad pressure wave that damages and pushes enemies back, temporarily preventing weapon fire. | Impact changes velocity and damage. Weapon fire resumes when the disarm expires. Spell casting follows an explicit disarm rule. The built Deafening Blast follows this spec: 50 damage, a 260-unit/s shove, and a 3 s weapon disarm. Spell casting is exempt from the disarm, and the disarmed player sees a WEAPONS DISABLED bar with the time left on it. |
 
 Mana must be introduced as a real server-owned resource. EMP targets in the tests must start with nonzero armor and mana. A renamed grenade or a resource value drawn only on the HUD does not implement EMP.
 
-Implemented numbers (2026-09-10): one 100-point pool per client, regenerated at 4 points per second while alive on the server. Ghost Walk costs 25 with an 18 s cooldown; Sunstrike costs 45 with a 24 s cooldown. Both cooldowns run on server time (`level.time`), and the HUD reads the pool through `STAT_INVOKE_MANA`.
+Implemented numbers (2026-09-10, extended 2026-09-11): one 100-point pool per client, regenerated at 4 points per second while alive on the server. Ghost Walk costs 25 with an 18 s cooldown; Sunstrike 45/24 s; EMP 45/30 s; Chaos Meteor 55/35 s; Tornado 40/25 s; Deafening Blast 45/30 s. All cooldowns run on server time (`level.time`), and the HUD reads the pool through `STAT_INVOKE_MANA`. Tornado lifts everyone inside its 170-unit radius to at least 210 units/s of upward speed and fades at solid walls or after 1.5 s. Deafening Blast bursts on contact or after 900 ms, shoving (260 units/s plus lift) and damaging (50) inside a 350-unit radius, and disarming weapon fire for 3 s. The disarm holds both hand weapons and the classic selected weapon (`ps.weaponTime`), while spell casting stays available; respawn clears it. Cold Snap costs 35 with a 20 s cooldown; it marks a 1000-unit aim and holds a 5 s debuff. Any damage except the trigger's own freezes the chilled player for 250 ms and adds 15 damage, at most once per 900 ms; the bonus is credited to the hit that set it off. The freeze locks movement, jumps, weapon fire and hand casts for its 250 ms; ground speed and the pm_type both ride player state the client predicts, so it does not desync. A recast while the debuff holds refreshes it but cannot shorten the victim's 900 ms floor. Alacrity costs 30 with a 20 s cooldown and grants an 8 s haste window: move speed, weapon fire intervals and hand cooldowns lift by 1.3 through the engine's haste powerup, and classic weapon damage is multiplied by 1.3 while it holds (spell damage is not). Recasts refresh the window; it never stacks, and a fresh life starts without it. The engine's own haste dressing also applies: the caster shows the haste smoke trail while moving and animation speed-up while the window holds, and the trail is not gated on invisibility, so a Ghost Walk caster who holds Alacrity is revealed while moving. Forge Spirit costs 60 with a 40 s cooldown and summons a 60-health companion for 30 s; it hovers near its caster, fires a 9-damage bolt every 1.3 s at the nearest enemy client in sight, and a bolt hit leaves the victim's armor absorbing at 0.6x for 4 s, refreshed by later hits. Two spirits live per caster; a summon at the cap dismisses the oldest.
 
 All temporary effects need bounded entity counts and explicit lifetimes. Friendly-fire policy must follow the selected game mode. The first test opponents can be local clients or bots; a full roguelite enemy roster is outside this spell implementation.
+
+### Chosen implementation (2026-09-11)
+
+- Rendering: the original-effect surface, chosen for this pass. The
+  view-through renderer stays a later, separate target.
+- Slot replacement: shots alternate replacement of A and B (A on the
+  first shot, B on the second, A again on the third). A refused shot
+  leaves the existing pair unchanged.
+- Placement: a 600-unit aim ray that must hit the static world (movers
+  and the sky are refused) with player-hull room at the face; ends must
+  stay 48 units apart. A refused shot spends nothing.
+- Cost: 15 mana per shot, 1.5 s between shots on the firing hand.
+- Traversal: exits 24 units clear of the far face, speed preserved and
+  capped at 700 along that face's direction, with a 500 ms per-client
+  re-entry guard; a blocked exit refuses travel instead of embedding
+  the player.
+- Lifecycle: the pair is kept across invoke and hand-swap, and removed
+  on death, respawn, disconnect, or map change.
 
 ## Portal behavior and safety
 
@@ -143,17 +161,17 @@ Keep the existing visual PR unchanged. This design lives on `feat/spell-system`,
 
 ## Completion contract
 
-Implementation is complete only when the applicable items below pass. Progress (2026-09-10): ordered recipes and the two-slot weapon path pass on the host and in-engine; the mana system, Ghost Walk, and Sunstrike pass their first in-engine exercise; the remaining spell rows and the portal are still open.
+Implementation is complete only when the applicable items below pass. Progress (2026-09-11): ordered recipes and the two-slot weapon path pass on the host and in-engine; the mana system, Ghost Walk, Sunstrike, EMP, Chaos Meteor, Tornado, Deafening Blast, Cold Snap, and Ice Wall pass their in-engine exercise (Cold Snap's hit reaction and Ice Wall's slow ride the shared-state host tests; a live two-player check remains open for both); Alacrity and Forge Spirit also pass their in-engine exercise; the Portal Pair places, connects, and travels in the smoke harness (2026-09-11), with its surface-draw check open.
 
-- [ ] Slot replacement and portal-rendering decisions are recorded.
+- [x] Slot replacement and portal-rendering decisions are recorded. (Chosen implementation, 2026-09-11.)
 - [ ] Exhaustive recipe tests cover all 27 ordered sequences, including order-distinct results, invalid input, and reserved entries.
 - [ ] Actual R/Mouse 1/Mouse 2 inputs work in-engine. The selected Mouse 1 update mechanism works from empty slots onward.
 - [ ] Both prepared slots work independently. Swapping and reinvoking cannot reset cooldowns or refill ammunition.
 - [ ] Each classic spell passes its behavior proof in the table above against live targets.
 - [ ] Mana spending and regeneration work. EMP removes nonzero enemy armor and mana as specified.
 - [ ] Every allocated Quake weapon fires correctly from either prepared slot, including hold-to-fire and ammunition use.
-- [ ] Portal placement and bidirectional traversal work. Invalid placement, unsafe exits, and repeated traversal have tests.
-- [ ] The chosen portal visual scope has rendered verification.
+- [x] Portal placement and bidirectional traversal work. Invalid placement, unsafe exits, and repeated traversal have tests. (Both ends placed, pair connected, and travel fired in smoke run `run-6crlnnam`; refusal and exit safeguards ride the shared host tests.)
+- [ ] The chosen portal visual scope has rendered verification. (Draw dispatch and host draw tests landed; end-to-end visibility in engine still open.)
 - [ ] Death, respawn, disconnect, and map restart leave no stale slots, status effects, summons, or portals.
 - [ ] Native libraries and QVMs build from a clean tree. Incremental header changes rebuild dependent QVM sources.
 - [ ] Host tests and scripted engine tests pass. Screenshots or recordings establish appearance separately from damage/resource assertions.

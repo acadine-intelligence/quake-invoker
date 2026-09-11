@@ -115,6 +115,9 @@ qboolean CheckGauntletAttack( gentity_t *ent ) {
 		s_quadFactor *= 2;
 	}
 #endif
+	// Alacrity multiplies weapon damage while its haste window holds
+	s_quadFactor = BG_InvokeWeaponDamageScale( s_quadFactor,
+		ent->client->ps.powerups[PW_HASTE] != 0 );
 
 	damage = 50 * s_quadFactor;
 	G_Damage( traceEnt, ent, ent, forward, tr.endpos,
@@ -818,6 +821,9 @@ void FireWeaponFromHand( gentity_t *ent, int weapon, int hand ) {
 		s_quadFactor *= 2;
 	}
 #endif
+	// Alacrity multiplies weapon damage while its haste window holds
+	s_quadFactor = BG_InvokeWeaponDamageScale( s_quadFactor,
+		ent->client->ps.powerups[PW_HASTE] != 0 );
 
 	// track shots taken for accuracy tracking.  Grapple is not a weapon and gauntet is just not tracked
 	if( ent->s.weapon != WP_GRAPPLING_HOOK && ent->s.weapon != WP_GAUNTLET ) {

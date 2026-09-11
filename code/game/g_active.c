@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 
 #include "g_local.h"
+#include "bg_invoke.h"
 
 
 /*
@@ -850,6 +851,24 @@ void ClientThink_real( gentity_t *ent ) {
 #endif
 	if ( client->ps.powerups[PW_HASTE] ) {
 		client->ps.speed *= 1.3;
+	}
+
+	// a Cold Snap freeze holds movement for its brief window. It must
+	// override the speed set above, so it runs here and not in the invoke
+	// think after the Pmove. PM_FREEZE additionally zeroes every movement
+	// command in Pmove, server and prediction alike, so the victim cannot
+	// jump out of the freeze; the pm_type write at the top of this think
+	// restores the normal state on the next frame.
+	if ( G_InvokeClientFrozen( ent ) ) {
+		client->ps.speed = 0;
+		if ( !client->noclip && client->ps.stats[STAT_HEALTH] > 0 ) {
+			client->ps.pm_type = PM_FREEZE;
+		}
+	}
+	// an Ice Wall field damps movement instead of stopping it. Overlapping
+	// fields refresh one slow window, so this stays a single multiply.
+	else if ( G_InvokeClientSlowed( ent ) ) {
+		client->ps.speed *= ICE_WALL_SLOW_SCALE;
 	}
 
 	// Let go of the hook if we aren't firing

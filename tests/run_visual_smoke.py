@@ -102,38 +102,71 @@ def main():
     args += ["+devmap", "oa_dm3", "+set", "activeAction", "exec visual_smoke.cfg"]
     with (run / "engine.log").open("w") as log:
         result = subprocess.run(args, cwd=RELEASE, stdout=log,
-                                stderr=subprocess.STDOUT, timeout=100)
+                                stderr=subprocess.STDOUT, timeout=240)
     if result.returncode:
         raise SystemExit(f"Game exited {result.returncode}. Inspect {run / 'engine.log'}")
     console = (mod / "visual-console.txt").read_text(errors="replace")
     for expected in ("orbs: Q W E", "invoked Rocket Launcher (WQW)",
-                     "invoked Lightning Gun (WWQ)", "Ice Wall: not castable yet",
+                     "invoked Lightning Gun (WWQ)", "invoked Ice Wall (QQE)",
                      "invoked Ghost Walk (QQW)", "cast Ghost Walk (-25 mana)",
                      "invoked Sunstrike (EEE)", "cast Sunstrike (-45 mana)",
-                     "sunstrike impact", "Invoker manual opened"):
+                     "sunstrike impact", "Invoker manual opened",
+                     "invoked EMP (WWW)", "cast EMP (-45 mana)", "emp impact",
+                     "invoked Chaos Meteor (WEE)", "cast Chaos Meteor (-55 mana)",
+                     "invoked Tornado (QWW)", "cast Tornado (-40 mana)",
+                     "tornado faded",
+                     "invoked Deafening Blast (QWE)", "cast Deafening Blast (-45 mana)",
+                     "deafening blast burst",
+                     "invoked Cold Snap (QQQ)", "cast Cold Snap (-35 mana)",
+                     "cast Ice Wall (-40 mana)",
+                     "invoked Alacrity (WWE)", "cast Alacrity (-30 mana)",
+                     "invoked Forge Spirit (QEE)", "cast Forge Spirit (-60 mana)",
+                     "invoked Portal Pair (QEW)", "cast Portal Pair (-15 mana)",
+                     "placed portal A", "placed portal B", "portal pair connected"):
         assert expected in console, f"Missing {expected!r} in {mod}"
     for error in ("unknown cmd orb", "unknown cmd invoke", "unknown cmd invswap",
-                  "unknown cmd invcast", "unhandled invoke spell", "VM_Abort", "ERROR:", "Unknown command",
+                  "unknown cmd invcast", "unknown cmd invemp", "unhandled invoke spell",
+                  "VM_Abort", "ERROR:", "Unknown command",
                   "May not switch teams"):
         assert error not in console, f"Unexpected {error!r} in {mod}"
     for combo, shot in (("Rocket Launcher (WQW)", "rocket_cast"),
                         ("Lightning Gun (WWQ)", "lightning_cast"),
                         ("Ghost Walk (QQW)", "ghost_equipped"),
-                        ("Sunstrike (EEE)", "sun_g1")):
+                        ("Sunstrike (EEE)", "sun_g1"),
+                        ("EMP (WWW)", "emp_charge"),
+                        ("Chaos Meteor (WEE)", "meteor_fly"),
+                        ("Tornado (QWW)", "tornado_fly"),
+                        ("Deafening Blast (QWE)", "deafen_fly"),
+                        ("Cold Snap (QQQ)", "coldsnap_cast"),
+                        ("Ice Wall (QQE)", "icewall_cast"),
+                        ("Alacrity (WWE)", "alacrity_cast"),
+                        ("Forge Spirit (QEE)", "forge_spirit"),
+                        ("Portal Pair (QEW)", "portal_a")):
         assert console.index("invoked " + combo) < console.index(
             f"Wrote screenshots/{shot}.tga"), "Screenshot preceded server confirmation"
     assert console.index("sunstrike impact") < console.index(
         "Wrote screenshots/sunstrike_after.tga"), "Strike impact missing before final shot"
     assert console.index("Invoker manual opened") < console.index(
         "Wrote screenshots/invoker_manual.tga"), "Manual opened after its screenshot"
+    assert console.index("deafening blast burst") < console.index(
+        "Wrote screenshots/deafen_after.tga"), "Burst missing before the last blast shot"
     assert_menu_fits(mod / "screenshots/invoker_manual.tga")
+    assert console.index("placed portal B") < console.index("portal travel"), \
+        "Traversal happened before the pair was complete"
     names = ("empty", "colors", "rocket_cast", "swapped_left", "rocket_ready", "lightning_cast",
              "dual_before", "left_fired", "right_firing", "both_after", "spell_attempt",
              "ghost_equipped", "ghost_cast",
              "sun_g1", "sun_g2", "sun_g3", "sun_g4", "sun_g5", "sun_g6",
              "sun_g7", "sun_g8", "sun_g9", "sun_g10", "sun_g11", "sun_g12",
              "sunstrike_after",
-             "effects_off", "spectator", "respawn", "ingame_menu", "invoker_manual",
+             "emp_charge", "emp_charge2", "emp_burst", "emp_after",
+             "meteor_fly", "meteor_boom", "meteor_after",
+             "tornado_fly", "tornado_lift", "tornado_after",
+             "deafen_fly", "deafen_burst", "deafen_after",
+             "coldsnap_cast",
+             "icewall_cast", "icewall_field",
+             "effects_off", "spectator", "respawn", "alacrity_cast", "forge_spirit",
+             "portal_a", "portal_b", "portal_travel", "ingame_menu", "invoker_manual",
              "back_to_game")
     screenshots = []
     for name in names:

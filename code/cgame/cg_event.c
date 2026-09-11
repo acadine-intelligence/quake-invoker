@@ -830,6 +830,27 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	}
 		break;
 
+	case EV_EMP:
+	{
+		vec3_t	empDir;
+
+		DEBUGNAME("EV_EMP");
+		ByteToDir( es->eventParm, empDir );
+		CG_MissileHitWall( es->weapon, 0, cent->lerpOrigin, empDir, IMPACTSOUND_DEFAULT );
+	}
+		break;
+
+	case EV_DEAFENING:
+	{
+		vec3_t	deafenDir;
+
+		DEBUGNAME("EV_DEAFENING");
+		ByteToDir( es->eventParm, deafenDir );
+		CG_InvokeDeafenBurst( cent->lerpOrigin );
+		CG_MissileHitWall( es->weapon, 0, cent->lerpOrigin, deafenDir, IMPACTSOUND_DEFAULT );
+	}
+		break;
+
 	case EV_USE_ITEM0:
 		DEBUGNAME("EV_USE_ITEM0");
 		CG_UseItem( cent );

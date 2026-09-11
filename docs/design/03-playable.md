@@ -48,7 +48,13 @@ cp build/Release/baseq3/vm/*.qvm build/Release/invoker/vm/
 cp configs/invoker.cfg build/Release/invoker/
 ```
 
-Launch the client with `com_basegame baseoa`, `fs_game invoker`, `sv_pure 0`, and `map oa_dm3`. In the game console, `exec invoker.cfg` selects Q/E/R for orb types Q/W/E and F for invoke. W retains its movement binding. Set `cg_invokeEffects 0` to hide the first-person effects while retaining the HUD.
+Launch the client with `com_basegame baseoa`, `fs_game invoker`, `sv_pure 0`, `+exec invoker.cfg`, and `+map oa_dm3`:
+
+```bash
+open build/Release/ioquake3.app --args +set com_basegame baseoa +set fs_game invoker +set sv_pure 0 +exec invoker.cfg +map oa_dm3
+```
+
+Run `scripts/sync-fsgame.sh` before launching: the app and the browser page load `vm/*.qvm` and the mod cfgs from the `fs_game` directories (`build/Release/invoker`, `build-em/Release/invoker`), which the build does not refresh on its own, so they otherwise go stale silently. `configs/invoker.cfg` binds movement-linked orb keys (W/A/S/D taps), `R` to invoke, `T` to swap hands, `MOUSE1`/`MOUSE2` to fire the hands, and `F1` to the Invoker Manual. Set `cg_invokeEffects 0` to hide the first-person effects while retaining the HUD.
 
 QVM compilation tracks source headers conservatively. A header change rebuilds all QVM modules so shared structs retain consistent offsets. Keep generated QVMs from different source revisions separate.
 
@@ -79,6 +85,8 @@ The server must expose the data directory tree under the page URL. Verified work
 - direct into a map: append `&args=%2Bmap%20oa_dm3` (the `+` must be `%2b`-encoded)
 
 Verified end to end: page loads, streams all paks, menu renders, `+map oa_dm3` enters the arena with weapon and HUD live (WebGL). Public hosting is a later, separately approved step (GitHub Pages or Cloudflare).
+
+Invoker mod in the browser (2026-09-11): append `&fs_game=invoker&args=%2Bmap%20oa_dm3%20%2Bexec%20invoker.cfg`; `build-em/Release/ioquake3-config.json` must list a `baseoa` section (the 9 paks) and an `invoker` section (the three QVMs and both cfgs). `scripts/sync-fsgame.sh` keeps the build-em mod files current alongside the desktop ones. Verified: the page streams all paks and QVMs, spawns on `oa_dm3` with the orb-and-mana HUD live.
 
 ## Emscripten toolchain
 

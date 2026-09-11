@@ -431,10 +431,21 @@ void StopFollowing( gentity_t *ent );
 // g_invoke.c (Quake Invoker)
 //
 void G_InvokeReset( gentity_t *ent );
+void G_InvokeCancelPendingEmp( gentity_t *ent );
+void G_InvokeDamageTaken( gentity_t *targ, gentity_t *attacker, vec3_t dir, int mod );
+qboolean G_InvokeClientFrozen( gentity_t *ent );
+qboolean G_InvokeClientSlowed( gentity_t *ent );
 void Cmd_Orb_f( gentity_t *ent );
 void Cmd_Invoke_f( gentity_t *ent );
 void Cmd_InvokeSwap_f( gentity_t *ent );
 void G_InvokeClientThink( gentity_t *ent, int buttons, int fireTime, qboolean gauntletHit );
+void G_InvokeTornadoThink( gentity_t *self );
+void G_InvokeBlastThink( gentity_t *self );
+void G_InvokeBlastImpact( gentity_t *ent, trace_t *trace );
+void G_InvokeSpiritBoltImpact( gentity_t *ent, trace_t *trace );
+void G_InvokeDismissPortals( gentity_t *ent );
+void G_InvokeDismissFields( gentity_t *ent );
+float G_InvokeArmorScale( gentity_t *ent );
 void BroadcastTeamChange( gclient_t *client, int oldTeam );
 void SetTeam( gentity_t *ent, const char *s );
 void Cmd_FollowCycle_f( gentity_t *ent, int dir );
@@ -525,6 +536,15 @@ void G_RunMissile( gentity_t *ent );
 gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t aimdir);
 gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t aimdir);
 gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir);
+gentity_t *fire_invoke_meteor (gentity_t *self, vec3_t start, vec3_t dir);
+gentity_t *fire_invoke_tornado (gentity_t *self, vec3_t start, vec3_t dir);
+gentity_t *fire_invoke_blast (gentity_t *self, vec3_t start, vec3_t dir);
+// Forge Spirit bolt tuning, shared by the fire function (g_missile.c) and
+// the spirit's think and impact (g_invoke.c).
+#define SPIRIT_BOLT_DAMAGE		9
+#define SPIRIT_BOLT_SPEED		900
+#define SPIRIT_BOLT_OFFSET		24
+gentity_t *fire_invoke_spirit_bolt (gentity_t *self, vec3_t start, vec3_t dir);
 gentity_t *fire_bfg (gentity_t *self, vec3_t start, vec3_t dir);
 gentity_t *fire_grapple (gentity_t *self, vec3_t start, vec3_t dir);
 #ifdef MISSIONPACK
