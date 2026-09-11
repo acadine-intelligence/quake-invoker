@@ -475,6 +475,28 @@ void G_InvokeDismissPortals( gentity_t *ent ) {
 
 /*
 ==============
+G_InvokeDismissFields
+
+Frees the placed fields this client owns. Disconnect only: a field
+outlives its caster's death by design, but a freed client slot must not
+leave a field exempting or blaming whichever player reuses the slot.
+==============
+*/
+void G_InvokeDismissFields( gentity_t *ent ) {
+	int i;
+
+	for ( i = 0; i < level.num_entities; i++ ) {
+		gentity_t *e = &g_entities[i];
+
+		if ( e->inuse && e->parent == ent && e->classname
+			&& !strcmp( e->classname, "invoke_icewall" ) ) {
+			G_FreeEntity( e );
+		}
+	}
+}
+
+/*
+==============
 G_InvokePlacePortal
 
 The QEW cast: records the next end at the aim anchor, alternates which

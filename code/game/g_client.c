@@ -1276,6 +1276,7 @@ void ClientDisconnect( int clientNum ) {
 	// a burst that will never land
 	G_InvokeCancelPendingEmp( ent );
 	G_InvokeDismissPortals( ent );
+	G_InvokeDismissFields( ent );
 
 	// stop any following clients
 	for ( i = 0 ; i < level.maxclients ; i++ ) {

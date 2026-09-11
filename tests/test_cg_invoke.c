@@ -572,6 +572,12 @@ int main( void ) {
 		CG_InvokeSlow( 600 );
 		cg.time += 400;
 		CHECK( CG_InvokeSlowFraction() > 0.0f );
+
+		// a shorter notice cannot cut a live window short: a 100 ms notice
+		// 200 ms before expiry must be ignored, so the window still runs
+		CG_InvokeSlow( 100 );
+		cg.time += 150;
+		CHECK( CG_InvokeSlowFraction() > 0.0f );
 	}
 
 	// the ice wall field draws its whole ring from the entity marker
@@ -585,7 +591,7 @@ int main( void ) {
 		CG_ResetInvokeEffects();
 		CG_InvokeIceField( &cent );
 		CHECK( entityCount == ICE_FIELD_OUTER_STEPS + ICE_FIELD_INNER_STEPS
-			&& lightCount == 1 );
+			&& lightCount == 1 && intensity == 200 );
 		CHECK( entities[0].reType == RT_SPRITE && entities[0].radius > 0 );
 		CHECK( entities[0].origin[0] != entities[1].origin[0] );
 	}
@@ -601,7 +607,7 @@ int main( void ) {
 		CG_ResetInvokeEffects();
 		entityCount = lightCount = 0;
 		CG_InvokePortal( &cent );
-		CHECK( entityCount == PORTAL_RING_STEPS + PORTAL_INNER_STEPS && lightCount == 1 );
+		CHECK( entityCount == PORTAL_RING_STEPS + PORTAL_INNER_STEPS && lightCount == 1 && intensity == 140 );
 		CHECK( entities[0].reType == RT_SPRITE && entities[0].radius > 0 );
 		CHECK( entities[0].origin[0] != entities[1].origin[0]
 			|| entities[0].origin[1] != entities[1].origin[1]
@@ -610,7 +616,7 @@ int main( void ) {
 		CG_ResetInvokeEffects();
 		entityCount = lightCount = 0;
 		CG_InvokePortal( &cent );
-		CHECK( entityCount == PORTAL_RING_STEPS + PORTAL_INNER_STEPS && lightCount == 1 );
+		CHECK( entityCount == PORTAL_RING_STEPS + PORTAL_INNER_STEPS && lightCount == 1 && intensity == 140 );
 	}
 
 	// the alacrity window reads the player state and draws a named bar

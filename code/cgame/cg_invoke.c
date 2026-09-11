@@ -182,7 +182,9 @@ float CG_InvokeChillFraction( void ) {
 // bar names the source. Each notice refreshes the window; standing in the
 // field keeps it alive, leaving lets it drain.
 void CG_InvokeSlow( int duration ) {
-	if ( duration <= 0 ) {
+	// the slow is a shared one-window refresh: a notice extends it (or
+	// starts it) but can never shorten a live window
+	if ( duration <= 0 || cg.time + duration <= cg.invokeSlowEndTime ) {
 		return;
 	}
 	cg.invokeSlowStartTime = cg.time;
