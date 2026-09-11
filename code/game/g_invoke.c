@@ -1252,6 +1252,11 @@ static void G_InvokeForgeSpiritFade( gentity_t *self ) {
 
 static void G_InvokeForgeSpiritDie( gentity_t *self, gentity_t *inflictor,
 	gentity_t *attacker, int damage, int mod ) {
+	// the engine's die signature: only the spirit itself matters here
+	(void)inflictor;
+	(void)attacker;
+	(void)damage;
+	(void)mod;
 	G_InvokeForgeSpiritFade( self );
 }
 
