@@ -1230,6 +1230,8 @@ typedef struct playerState_s {
 #define BUTTON_FOLLOWME		1024
 
 #define	BUTTON_ANY			2048			// any key whatsoever
+#define BUTTON_INVOKE_LEFT	4096			// Quake Invoker left hand
+#define BUTTON_INVOKE_RIGHT	8192			// Quake Invoker right hand
 
 #define	MOVE_RUN			120			// if forwardmove or rightmove are >= MOVE_RUN,
 										// then BUTTON_WALKING should be set

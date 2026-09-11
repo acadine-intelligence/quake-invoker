@@ -433,6 +433,8 @@ void StopFollowing( gentity_t *ent );
 void G_InvokeReset( gentity_t *ent );
 void Cmd_Orb_f( gentity_t *ent );
 void Cmd_Invoke_f( gentity_t *ent );
+void Cmd_InvokeSwap_f( gentity_t *ent );
+void G_InvokeClientThink( gentity_t *ent, int buttons, int fireTime, qboolean gauntletHit );
 void BroadcastTeamChange( gclient_t *client, int oldTeam );
 void SetTeam( gentity_t *ent, const char *s );
 void Cmd_FollowCycle_f( gentity_t *ent, int dir );
@@ -593,6 +595,7 @@ qboolean G_FilterPacket (char *from);
 // g_weapon.c
 //
 void FireWeapon( gentity_t *ent );
+void FireWeaponFromHand( gentity_t *ent, int weapon, int hand );
 #ifdef MISSIONPACK
 void G_StartKamikaze( gentity_t *ent );
 #endif
@@ -957,4 +960,3 @@ void	trap_BotResetWeaponState(int weaponstate);
 int		trap_GeneticParentsAndChildSelection(int numranks, float *ranks, int *parent1, int *parent2, int *child);
 
 void	trap_SnapVector( float *v );
-

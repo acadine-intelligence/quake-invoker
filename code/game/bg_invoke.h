@@ -31,6 +31,34 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define BG_INVOKE_H
 
 #define INVOKE_SLOTS		3
+#define INVOKE_HANDS		2
+
+#define INVOKE_MOVE_W		0x01
+#define INVOKE_MOVE_A		0x02
+#define INVOKE_MOVE_S		0x04
+#define INVOKE_MOVE_D		0x08
+#define INVOKE_MOVE_ALL		0x0f
+
+typedef enum {
+	INVOKE_HAND_LEFT,
+	INVOKE_HAND_RIGHT
+} invokeHand_t;
+
+typedef enum {
+	INVOKE_FIRE_INVALID = -1,
+	INVOKE_FIRE_EMPTY,
+	INVOKE_FIRE_COOLDOWN,
+	INVOKE_FIRE_NO_AMMO,
+	INVOKE_FIRE_OK
+} invokeFireResult_t;
+
+// Server-authoritative hand assignment and per-weapon timing. nextFireTime is
+// indexed by weapon so duplicate weapons in both hands necessarily share it.
+typedef struct {
+	int		weapon[INVOKE_HANDS];
+	int		nextFireTime[WP_NUM_WEAPONS];
+	unsigned int	grantedWeapons;
+} invokeHands_t;
 
 typedef enum {
 	ORB_NONE,
@@ -65,5 +93,16 @@ char		BG_OrbLetter( int orb );
 
 // parse "q", "w", "e" (case insensitive) to an orb type, ORB_NONE otherwise
 orbType_t	BG_OrbFromString( const char *s );
+
+void		BG_InvokeHandsReset( invokeHands_t *hands );
+int			BG_InvokeHandWeapon( const invokeHands_t *hands, int hand );
+int			BG_InvokeEquipHand( invokeHands_t *hands, int hand, int weapon,
+				int initialAmmo, int ammo[WP_NUM_WEAPONS], int *weaponBits );
+void		BG_InvokeSwapHands( invokeHands_t *hands );
+int		BG_InvokePackedHands( const invokeHands_t *hands );
+int			BG_InvokeWeaponCooldown( int weapon );
+invokeFireResult_t BG_InvokeTryFire( invokeHands_t *hands, int hand, int now,
+				int cooldown, int ammo[WP_NUM_WEAPONS], int *firedWeapon );
+const char	*BG_InvokeWeaponName( int weapon );
 
 #endif
