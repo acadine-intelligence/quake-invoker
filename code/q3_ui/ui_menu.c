@@ -40,6 +40,7 @@ MAIN MENU
 #define ID_TEAMARENA		15
 #define ID_MODS					16
 #define ID_EXIT					17
+#define ID_INVOKERMANUAL		20
 
 #define MAIN_BANNER_MODEL				"models/mapobjects/banner/banner5.md3"
 #define MAIN_MENU_VERTICAL_SPACING		34
@@ -53,6 +54,7 @@ typedef struct {
 	menutext_s		setup;
 	menutext_s		demos;
 	menutext_s		cinematics;
+	menutext_s		invoker;
 	menutext_s		teamArena;
 	menutext_s		mods;
 	menutext_s		exit;
@@ -114,6 +116,10 @@ void Main_MenuEvent (void* ptr, int event) {
 
 	case ID_CINEMATICS:
 		UI_CinematicsMenu();
+		break;
+
+	case ID_INVOKERMANUAL:
+		UI_InvokerMenu();
 		break;
 
 	case ID_MODS:
@@ -362,8 +368,19 @@ void UI_MainMenu( void ) {
 	s_main.cinematics.generic.id			= ID_CINEMATICS;
 	s_main.cinematics.generic.callback		= Main_MenuEvent; 
 	s_main.cinematics.string				= "CINEMATICS";
-	s_main.cinematics.color					= color_red;
-	s_main.cinematics.style					= style;
+	s_main.cinematics.color				= color_red;
+	s_main.cinematics.style				= style;
+
+	y += MAIN_MENU_VERTICAL_SPACING;
+	s_main.invoker.generic.type			= MTYPE_PTEXT;
+	s_main.invoker.generic.flags		= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
+	s_main.invoker.generic.x			= 320;
+	s_main.invoker.generic.y			= y;
+	s_main.invoker.generic.id			= ID_INVOKERMANUAL;
+	s_main.invoker.generic.callback		= Main_MenuEvent;
+	s_main.invoker.string				= "INVOKER MANUAL";
+	s_main.invoker.color				= color_red;
+	s_main.invoker.style				= style;
 
 	if ( !uis.demoversion && UI_TeamArenaExists() ) {
 		teamArena = qtrue;
@@ -408,6 +425,7 @@ void UI_MainMenu( void ) {
 	Menu_AddItem( &s_main.menu,	&s_main.setup );
 	Menu_AddItem( &s_main.menu,	&s_main.demos );
 	Menu_AddItem( &s_main.menu,	&s_main.cinematics );
+	Menu_AddItem( &s_main.menu,	&s_main.invoker );
 	if (teamArena) {
 		Menu_AddItem( &s_main.menu,	&s_main.teamArena );
 	}

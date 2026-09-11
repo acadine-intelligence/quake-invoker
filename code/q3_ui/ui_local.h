@@ -331,6 +331,12 @@ extern void InGame_Cache( void );
 extern void UI_InGameMenu(void);
 
 //
+// ui_invoker.c
+//
+extern void UI_InvokerMenu( void );
+extern void UI_InvokerMenu_f( void );
+
+//
 // ui_confirm.c
 //
 extern void ConfirmMenu_Cache( void );
