@@ -166,7 +166,7 @@ def main():
              "coldsnap_cast",
              "icewall_cast", "icewall_field",
              "effects_off", "spectator", "respawn", "alacrity_cast", "forge_spirit",
-             "portal_a", "portal_b", "portal_travel", "ingame_menu", "invoker_manual",
+             "portal_pre", "portal_a", "portal_b", "portal_travel", "ingame_menu", "invoker_manual",
              "back_to_game")
     screenshots = []
     for name in names:

@@ -502,25 +502,33 @@ void CG_InvokePortal( centity_t *cent ) {
 	const vec4_t *col = cent->currentState.frame ? &colB : &colA;
 	float phase = ( cg.time % 2000 ) * ( 2.0f * M_PI / 2000.0f );
 	float pulse = 0.65f + 0.25f * sin( cg.time * 0.006f );
-	vec3_t right, up, p;
+	vec3_t fwd, right, up, p, ring;
 	int i;
 
-	AngleVectors( cent->currentState.apos.trBase, NULL, right, up );
+	AngleVectors( cent->currentState.apos.trBase, fwd, right, up );
+	// hold the ring clear of the surface: sprites centred in the wall plane
+	// get half-clipped by it and read as faint smudges
+	VectorMA( cent->lerpOrigin, 8.0f, fwd, ring );
 	for ( i = 0; i < PORTAL_RING_STEPS; i++ ) {
 		float a = phase + i * ( 2.0f * M_PI / PORTAL_RING_STEPS );
 
-		VectorMA( cent->lerpOrigin, 30.0f * cos( a ), right, p );
-		VectorMA( p, 30.0f * sin( a ), up, p );
-		CG_InvokeWorldSprite( p, 6.0f, *col, pulse, a * 180 / M_PI + cg.time * 0.1f );
+		VectorMA( ring, 56.0f * cos( a ), right, p );
+		VectorMA( p, 56.0f * sin( a ), up, p );
+		CG_InvokeWorldSprite( p, 13.0f, *col, pulse, a * 180 / M_PI + cg.time * 0.1f );
 	}
 	for ( i = 0; i < PORTAL_INNER_STEPS; i++ ) {
 		float a = -phase * 1.6f + i * ( 2.0f * M_PI / PORTAL_INNER_STEPS );
 
-		VectorMA( cent->lerpOrigin, 13.0f * cos( a ), right, p );
-		VectorMA( p, 13.0f * sin( a ), up, p );
-		CG_InvokeWorldSprite( p, 4.0f, *col, pulse * 0.8f, a * 180 / M_PI );
+		VectorMA( ring, 28.0f * cos( a ), right, p );
+		VectorMA( p, 28.0f * sin( a ), up, p );
+		CG_InvokeWorldSprite( p, 9.0f, *col, pulse * 0.8f, a * 180 / M_PI );
 	}
-	trap_R_AddLightToScene( cent->lerpOrigin, 140, (*col)[0], (*col)[1], (*col)[2] );
+	// a soft face-on core so the ring reads from a distance
+	for ( i = 0; i < PORTAL_CORE_SPRITES; i++ ) {
+		CG_InvokeWorldSprite( ring, 38.0f - 11.0f * i, *col,
+			pulse * ( 0.4f - 0.1f * i ), 0.0f );
+	}
+	trap_R_AddLightToScene( cent->lerpOrigin, 200, (*col)[0], (*col)[1], (*col)[2] );
 }
 
 // Forge Spirit: a small flame wisp of orbiting sprites plus a warm light.

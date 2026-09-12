@@ -1325,6 +1325,7 @@ void CG_InvokeSpellCast( int hand, int spell );
 #define TORNADO_SPRITES 16		// sprites in the tornado column
 #define PORTAL_RING_STEPS 16	// sprites around a portal end
 #define PORTAL_INNER_STEPS 8
+#define PORTAL_CORE_SPRITES 3	// face-on glow so the ring reads from range
 #define ICE_FIELD_OUTER_STEPS 20	// sprites around an ice wall field
 #define ICE_FIELD_INNER_STEPS 10	// inner ring of the same field
 #define FORGE_SPIRIT_STEPS 6		// sprites in a forge spirit wisp
