@@ -607,7 +607,7 @@ int main( void ) {
 		CG_ResetInvokeEffects();
 		entityCount = lightCount = 0;
 		CG_InvokePortal( &cent );
-		CHECK( entityCount == PORTAL_RING_STEPS + PORTAL_INNER_STEPS && lightCount == 1 && intensity == 140 );
+		CHECK( entityCount == PORTAL_RING_STEPS + PORTAL_INNER_STEPS + PORTAL_CORE_SPRITES && lightCount == 1 && intensity == 200 );
 		CHECK( entities[0].reType == RT_SPRITE && entities[0].radius > 0 );
 		CHECK( entities[0].origin[0] != entities[1].origin[0]
 			|| entities[0].origin[1] != entities[1].origin[1]
@@ -616,7 +616,7 @@ int main( void ) {
 		CG_ResetInvokeEffects();
 		entityCount = lightCount = 0;
 		CG_InvokePortal( &cent );
-		CHECK( entityCount == PORTAL_RING_STEPS + PORTAL_INNER_STEPS && lightCount == 1 && intensity == 140 );
+		CHECK( entityCount == PORTAL_RING_STEPS + PORTAL_INNER_STEPS + PORTAL_CORE_SPRITES && lightCount == 1 && intensity == 200 );
 	}
 
 	// the alacrity window reads the player state and draws a named bar
